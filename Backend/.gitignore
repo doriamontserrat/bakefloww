@@ -1,0 +1,16 @@
+# Dependencias y módulos pesados
+node_modules/
+
+# Variables de entorno y credenciales secretas
+.env
+
+# Archivos de logs y depuración de Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Archivos temporales del sistema operativo
+.DS_Store
+Thumbs.db
+uploads/

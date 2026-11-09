@@ -1,0 +1,19 @@
+# Blueprint de Render para publicar el backend (Render > New > Blueprint)
+services:
+  - type: web
+    name: bakeflow-api
+    runtime: node
+    plan: free
+    rootDir: Backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: MONGO_URI
+        sync: false          # pegar la cadena de Atlas en el panel de Render
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://fatimasalazarr.github.io
+      - key: PUBLIC_API_URL
+        sync: false          # https://bakeflow-api.onrender.com (para URLs de imágenes)

@@ -1,0 +1,215 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 8px);
+}
+
+:root {
+  --background: #fef6fa;
+  --foreground: #3d1a30;
+  --card: #ffffff;
+  --card-foreground: #3d1a30;
+  --primary: #ec4899;
+  --primary-foreground: #ffffff;
+  --secondary: #fce7f3;
+  --secondary-foreground: #be185d;
+  --muted: #fdf0f8;
+  --muted-foreground: #a1607e;
+  --accent: #a855f7;
+  --accent-foreground: #ffffff;
+  --border: #fad5eb;
+  --ring: #ec4899;
+  --radius: 1rem;
+  --sidebar-width: 260px;
+  --sidebar-collapsed: 72px;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #f9a8d4 transparent;
+}
+*::-webkit-scrollbar { width: 5px; height: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background-color: #f9a8d4; border-radius: 99px; }
+
+.font-display { font-family: 'Fredoka', sans-serif; }
+
+/* Dot pattern */
+.bg-dots {
+  background-image: radial-gradient(circle, #f9a8d4 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Grid pattern */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(244,114,182,.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(244,114,182,.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Card shadows — multiple layers for depth */
+.card-shadow {
+  box-shadow:
+    0 1px 2px rgba(236, 72, 153, 0.06),
+    0 4px 16px -2px rgba(236, 72, 153, 0.12),
+    0 0 0 1px rgba(250, 213, 235, 0.6) inset;
+}
+
+.card-shadow-lg {
+  box-shadow:
+    0 2px 4px rgba(236, 72, 153, 0.06),
+    0 8px 32px -4px rgba(236, 72, 153, 0.18),
+    0 0 0 1px rgba(250, 213, 235, 0.5) inset;
+}
+
+.card-shadow-xl {
+  box-shadow:
+    0 4px 8px rgba(236, 72, 153, 0.08),
+    0 20px 60px -8px rgba(236, 72, 153, 0.24),
+    0 0 0 1px rgba(250, 213, 235, 0.4) inset;
+}
+
+/* Glow button effect */
+.btn-glow {
+  box-shadow: 0 4px 20px -4px rgba(236, 72, 153, 0.55);
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.btn-glow:hover {
+  box-shadow: 0 6px 28px -4px rgba(236, 72, 153, 0.7);
+  transform: translateY(-1px);
+}
+.btn-glow:active { transform: scale(0.97); box-shadow: none; }
+
+/* Glass morphism */
+.glass {
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Input focus ring */
+.input-base {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.875rem;
+  border: 2px solid var(--border);
+  background: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: 'Nunito', sans-serif;
+  color: var(--foreground);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+}
+.input-base:focus {
+  border-color: #ec4899;
+  box-shadow: 0 0 0 3px rgba(236,72,153,0.12);
+}
+.input-base::placeholder { color: var(--muted-foreground); }
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  33% { transform: translateY(-8px) rotate(1deg); }
+  66% { transform: translateY(-4px) rotate(-1deg); }
+}
+
+@keyframes pop {
+  0% { transform: scale(0.93) translateY(8px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes fade-up {
+  0% { transform: translateY(16px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-in-left {
+  0% { transform: translateX(-16px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(236,72,153,0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(236,72,153,0); }
+  100% { box-shadow: 0 0 0 0 rgba(236,72,153,0); }
+}
+
+.animate-float { animation: float 4s ease-in-out infinite; }
+.animate-pop { animation: pop 0.25s cubic-bezier(0.34,1.56,0.64,1); }
+.animate-fade-up { animation: fade-up 0.35s ease-out; }
+.animate-slide-in { animation: slide-in-left 0.3s ease-out; }
+
+/* Status badges — pill style */
+.badge-pending  { background: #fdf2f8; color: #f472b6; border: 1px solid #fce7f3; }
+.badge-progress { background: #fce7f3; color: #db2777; border: 1px solid #fbcfe8; }
+.badge-ready    { background: #fbcfe8; color: #9d174d; border: 1px solid #f9a8d4; }
+.badge-delivered{ background: #faf5ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.badge-cancelled{ background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+
+/* Section header rule */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+/* Table row hover */
+.table-row {
+  transition: background 0.12s;
+}
+.table-row:hover { background: var(--muted); }
+
+/* Nav active indicator */
+.nav-active-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 99px;
+  background: white;
+  opacity: 0.9;
+}
