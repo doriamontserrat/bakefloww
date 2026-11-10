@@ -112,6 +112,7 @@ exports.login = async (req, res) => {
         email: user.email,
         role: user.role,
         bakeryId: user.bakeryId,
+        jobTitle: user.jobTitle || '',
         plan: await planInfoFor(user)
       }
     });

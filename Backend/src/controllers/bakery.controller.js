@@ -1,3 +1,4 @@
+const v = require('../utils/validators');
 const Bakery = require('../models/Bakery.model');
 const User = require('../models/User.model');
 const Order = require('../models/Order.model');
@@ -77,7 +78,14 @@ exports.updateBakery = async (req, res) => {
     if (!bakery) return notFound(res, 'Pastelería no encontrada');
     if (!canAccessBakery(req.user, bakery._id)) return forbidden(res);
 
-    bakery.set(pick(req.body, req.user.role === 'admin' ? ADMIN_FIELDS : OWNER_FIELDS));
+    const data = pick(req.body, req.user.role === 'admin' ? ADMIN_FIELDS : OWNER_FIELDS);
+    const invalid = v.firstError(
+      'name' in data ? v.validateTitle(data.name, 'El nombre de la pastelería') : '',
+      'phone' in data ? v.validatePhone(data.phone) : '',
+      'address' in data ? v.validateAddress(data.address) : ''
+    );
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
+    bakery.set(data);
     await bakery.save();
     res.json({ ok: true, message: 'Pastelería actualizada', bakery });
   } catch (error) {

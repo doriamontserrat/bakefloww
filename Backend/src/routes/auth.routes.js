@@ -2,6 +2,10 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const authController = require('../controllers/auth.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
+const v = require('../utils/validators');
+
+// Adaptador: convierte un validador propio (devuelve mensaje o '') en regla de express-validator
+const rule = (field, fn) => body(field).custom((value) => { const msg = fn(value); if (msg) throw new Error(msg); return true; });
 
 const router = express.Router();
 
@@ -18,9 +22,13 @@ router.post(
   '/register',
   // 1. Solo reglas de validación dentro del arreglo
   [
-    body('name').notEmpty().withMessage('El nombre es obligatorio'),
-    body('email').isEmail().withMessage('Debe ser un correo válido'),
-    body('password').isLength({ min: 6 }).withMessage('La contraseña debe tener mínimo 6 caracteres')
+    rule('name', (x) => v.validateName(x)),
+    rule('email', v.validateEmail),
+    rule('password', v.validatePassword),
+    body('phone').optional({ values: 'falsy' }).custom((x) => { const m = v.validatePhone(x); if (m) throw new Error(m); return true; }),
+    body('address').optional({ values: 'falsy' }).custom((x) => { const m = v.validateAddress(x); if (m) throw new Error(m); return true; }),
+    body('birthday').optional({ values: 'falsy' }).custom((x) => { const m = v.validateBirthday(x); if (m) throw new Error(m); return true; }),
+    body('bakeryName').optional({ values: 'falsy' }).custom((x) => { const m = v.validateTitle(x, 'El nombre de la pastelería'); if (m) throw new Error(m); return true; })
   ],
   // 2. 'validate' va afuera como middleware independiente
   validate,

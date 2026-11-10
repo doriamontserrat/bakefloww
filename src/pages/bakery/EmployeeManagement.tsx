@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../../services/api";
+import { validateName, validateEmail, validatePhone, validatePassword, firstError, sanitizeField } from "../../utils/validators";
 import { Plus, Pencil, X, Users } from "lucide-react";
 
 const ROLES = ["Pastelera", "Decoradora", "Repartidora", "Cajera", "Asistente"];
@@ -44,10 +45,11 @@ export default function EmployeeManagement() {
   function openEdit(emp: Employee) { setEditEmp(emp); setError(""); setForm({ name: emp.name, role: emp.role, email: emp.email, phone: emp.phone, password: "" }); setShowModal(true); }
 
   async function save() {
-    if (!form.name.trim() || (!editEmp && (!form.email.trim() || form.password.length < 6))) {
-      setError(editEmp ? "El nombre es obligatorio." : "Nombre, correo y una contraseña de al menos 6 caracteres son obligatorios.");
-      return;
-    }
+    const invalid = firstError(
+      validateName(form.name), editEmp ? "" : validateEmail(form.email), validatePhone(form.phone),
+      editEmp ? "" : validatePassword(form.password),
+    );
+    if (invalid) { setError(invalid); return; }
     setSaving(true);
     setError("");
     try {
@@ -146,11 +148,11 @@ export default function EmployeeManagement() {
                 { key: "name", label: "Nombre completo", type: "text", ph: "Nombre de la empleada" },
                 { key: "email", label: "Correo electrónico", type: "email", ph: "correo@pasteleria.com" },
                 { key: "phone", label: "Teléfono", type: "tel", ph: "+52 55 0000 0000" },
-                ...(editEmp ? [] : [{ key: "password", label: "Contraseña inicial", type: "password", ph: "Mínimo 6 caracteres" }]),
+                ...(editEmp ? [] : [{ key: "password", label: "Contraseña inicial", type: "password", ph: "Mín. 8: letra, número y carácter especial" }]),
               ].map((f) => (
                 <div key={f.key}>
                   <label className="block text-xs font-bold text-foreground mb-1.5">{f.label}</label>
-                  <input type={f.type} value={form[f.key as keyof typeof form]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })}
+                  <input type={f.type} value={form[f.key as keyof typeof form]} onChange={(e) => setForm({ ...form, [f.key]: sanitizeField(f.key, e.target.value) })}
                     placeholder={f.ph} disabled={!!editEmp && f.key === "email"} className="w-full px-4 py-3 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
                 </div>
               ))}

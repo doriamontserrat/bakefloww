@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { Clock, ChefHat, CheckCircle2, PartyPopper, XCircle, Cake, Phone, User, CreditCard, Lock, ChevronLeft, X, UserCheck, CheckCheck } from "lucide-react";
 import { api } from "../../services/api";
+import { DATE_FILTERS, matchesDate, keyOf, compareByDate, type DateFilter } from "../../utils/dateFilter";
 
 
 type OrderStatus = "pending" | "accepted" | "progress" | "ready" | "delivered" | "cancelled";
 
 interface OrderRow {
   id: string; dbId: string; client: string; cake: string; date: string; status: OrderStatus;
-  employee: string; total: string; phone: string;
+  employee: string; total: string; phone: string; dateKey: string;
 }
 
 const UI_TO_DB: Record<OrderStatus, string> = {
@@ -32,6 +33,7 @@ function toRow(o: any): OrderRow {
     employee: o.assignedEmployeeId?.name || "Sin asignar",
     total: `${(o.totalPrice || 0).toLocaleString()}`,
     phone: o.customerId?.phone || "—",
+    dateKey: keyOf(new Date(o.deliveryDate)),
   };
 }
 
@@ -56,6 +58,8 @@ export default function OrdersManagement() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [customDay, setCustomDay] = useState("");
 
   useEffect(() => {
     Promise.all([
@@ -79,10 +83,13 @@ export default function OrdersManagement() {
 
   // "Aceptado" y "En proceso" comparten estado en la base de datos, así que el filtro los agrupa en "En proceso"
   const FILTERS: ("all" | OrderStatus)[] = ["all", "pending", "progress", "ready", "delivered", "cancelled"];
+  const byDate = orders.filter(o => matchesDate(o.dateKey, dateFilter, customDay));
   const countOf = (f: "all" | OrderStatus) =>
-    orders.filter(o => f === "all" || o.status === f || (f === "progress" && o.status === "accepted")).length;
-  const visibleOrders = orders.filter(o =>
-    statusFilter === "all" || o.status === statusFilter || (statusFilter === "progress" && o.status === "accepted"));
+    byDate.filter(o => f === "all" || o.status === f || (f === "progress" && o.status === "accepted")).length;
+  // Ordenados por fecha de entrega: los próximos primero; en "Pasados" los más recientes primero
+  const visibleOrders = byDate
+    .filter(o => statusFilter === "all" || o.status === statusFilter || (statusFilter === "progress" && o.status === "accepted"))
+    .sort(compareByDate(dateFilter));
 
   const selectedOrder = orders.find(o => o.id === selected);
   const payOrder = showPayment ? orders.find(o => o.id === showPayment) : null;
@@ -136,6 +143,20 @@ export default function OrdersManagement() {
         {loading && <p className="lg:col-span-5 text-sm text-muted-foreground">Cargando pedidos...</p>}
         {/* List */}
         <div className="lg:col-span-2 space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5 pb-1" role="tablist" aria-label="Filtrar por fecha de entrega">
+            {DATE_FILTERS.map(f => (
+              <button key={f.val} onClick={() => setDateFilter(f.val)} role="tab" aria-selected={dateFilter === f.val}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  dateFilter === f.val ? "border-violet-400 bg-violet-50 text-violet-600" : "border-border text-muted-foreground hover:border-violet-200"
+                }`}>
+                {f.label}
+              </button>
+            ))}
+            {dateFilter === "custom" && (
+              <input type="date" value={customDay} onChange={(e) => setCustomDay(e.target.value)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold border border-violet-300 bg-card focus:outline-none" />
+            )}
+          </div>
           <div className="flex flex-wrap gap-1.5 pb-1" role="tablist" aria-label="Filtrar por estado">
             {FILTERS.map(f => (
               <button key={f} onClick={() => setStatusFilter(f)} role="tab" aria-selected={statusFilter === f}
@@ -147,7 +168,7 @@ export default function OrdersManagement() {
             ))}
           </div>
           {!loading && visibleOrders.length === 0 && (
-            <p className="text-sm text-muted-foreground py-4 text-center">No hay pedidos con este estado.</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">No hay pedidos con estos filtros.</p>
           )}
           {visibleOrders.map(o => {
             const s = STATUS_MAP[o.status];

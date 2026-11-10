@@ -1,22 +1,30 @@
 import { API_URL } from "../pages/authService";
 
 export function getToken(): string | null {
-  return localStorage.getItem("bakeflow_token");
+  return sessionStorage.getItem("bakeflow_token");
 }
 
-export function getStoredUser(): { id: string; name: string; email: string; role: string; bakeryId: string | null } | null {
+export function getStoredUser(): { id: string; name: string; email: string; role: string; bakeryId: string | null; jobTitle?: string } | null {
   try {
-    return JSON.parse(localStorage.getItem("bakeflow_user") || "null");
+    return JSON.parse(sessionStorage.getItem("bakeflow_user") || "null");
   } catch {
     return null;
   }
 }
 
+/** ¿La empleada en sesión es cajera? Solo ella ve el módulo de Ventas. */
+export const isCashier = (): boolean => getStoredUser()?.jobTitle === "Cajera";
+
+/** Actualiza campos del usuario guardado en la sesión (p. ej. el nombre tras editar el perfil). */
+export function updateStoredUser(patch: Record<string, unknown>) {
+  sessionStorage.setItem("bakeflow_user", JSON.stringify({ ...getStoredUser(), ...patch }));
+}
+
 export const UNAUTHORIZED_EVENT = "bakeflow:unauthorized";
 
 export function clearSession() {
-  localStorage.removeItem("bakeflow_token");
-  localStorage.removeItem("bakeflow_user");
+  sessionStorage.removeItem("bakeflow_token");
+  sessionStorage.removeItem("bakeflow_user");
 }
 
 /** Petición autenticada al backend. Lanza Error con el mensaje del servidor si falla. */
@@ -36,7 +44,8 @@ export async function api<T = any>(path: string, options: { method?: string; bod
     throw new Error("No se pudo conectar con el servidor.");
   }
   // Token vencido o inválido: cerrar la sesión de forma global
-  if (response.status === 401 && token) {
+  // (las confirmaciones de credenciales de otra cuenta no cuentan: una contraseña equivocada no debe sacar al usuario)
+  if (response.status === 401 && token && !path.startsWith("/users/authorize-supervisor") && !path.startsWith("/users/verify-credentials")) {
     clearSession();
     window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
   }
@@ -77,7 +86,7 @@ export interface PlanInfo { key: string; name: string; features: string[]; expir
 
 export function getPlan(): PlanInfo | null {
   try {
-    return (JSON.parse(localStorage.getItem("bakeflow_user") || "null")?.plan as PlanInfo | null) ?? null;
+    return (JSON.parse(sessionStorage.getItem("bakeflow_user") || "null")?.plan as PlanInfo | null) ?? null;
   } catch {
     return null;
   }
@@ -89,8 +98,8 @@ export const hasFeature = (feature: string): boolean => !!getPlan()?.features.in
 /** Guarda el plan actualizado que devuelve /auth/me en la sesión guardada. */
 export function saveStoredPlan(plan: PlanInfo | null) {
   try {
-    const user = JSON.parse(localStorage.getItem("bakeflow_user") || "null");
-    if (user) localStorage.setItem("bakeflow_user", JSON.stringify({ ...user, plan }));
+    const user = JSON.parse(sessionStorage.getItem("bakeflow_user") || "null");
+    if (user) sessionStorage.setItem("bakeflow_user", JSON.stringify({ ...user, plan }));
   } catch { /* sin sesión guardada */ }
 }
 

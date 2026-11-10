@@ -34,10 +34,18 @@ interface Props {
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
   showCart: boolean;
   setShowCart: (v: boolean) => void;
+  /** Pastelería elegida en el inicio: el menú muestra solo sus productos */
+  bakery?: { id: string; name: string } | null;
+  onClearBakery?: () => void;
+  /** Se llama al terminar una compra (para llevar al cliente a "Mis pedidos") */
+  onOrdered?: () => void;
 }
 
-export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: Props) {
+export default function CustomerMenu({ cart, setCart, showCart, setShowCart, bakery, onClearBakery, onOrdered }: Props) {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  // Todo producto visto alguna vez: el carrito puede tener productos de otra pastelería distinta a la del menú actual
+  const [known, setKnown] = useState<Record<string, MenuItem>>({});
+  const findItem = (id: string) => known[id] ?? menuItems.find((i) => i.id === id);
   const [loadError, setLoadError] = useState("");
   const [ordering, setOrdering] = useState(false);
   const [category, setCategory] = useState("Todos");
@@ -55,10 +63,15 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
   const [priceMax, setPriceMax] = useState("");
 
   useEffect(() => {
-    api<{ products: any[] }>("/products")
-      .then(({ products }) => setMenuItems(products.filter((p) => p.isAvailable).map(toMenuItem)))
+    setCategory("Todos");
+    api<{ products: any[] }>(`/products${bakery ? `?bakeryId=${bakery.id}` : ""}`)
+      .then(({ products }) => {
+        const items = products.filter((p) => p.isAvailable).map(toMenuItem);
+        setMenuItems(items);
+        setKnown((k) => ({ ...k, ...Object.fromEntries(items.map((i) => [i.id, i])) }));
+      })
       .catch((e) => setLoadError(e.message));
-  }, []);
+  }, [bakery?.id]);
 
   // Al abrir el carrito se traen las tarjetas guardadas y la dirección del perfil
   useEffect(() => {
@@ -83,7 +96,7 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
   });
   const detailsValid = !!details.date && details.date >= todayStr() && (details.method === "pickup" || details.address.trim().length > 4);
   const cartTotal = cart.reduce((sum, c) => {
-    const item = menuItems.find((i) => i.id === c.id);
+    const item = findItem(c.id);
     return sum + (item?.price || 0) * c.qty;
   }, 0);
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
@@ -134,7 +147,7 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
 
       const byBakery: Record<string, { productId: string; quantity: number; size: string }[]> = {};
       for (const ci of cart) {
-        const item = menuItems.find((i) => i.id === ci.id);
+        const item = findItem(ci.id);
         if (!item) continue;
         (byBakery[item.bakeryId] ||= []).push({ productId: item.id, quantity: ci.qty, size: ci.size ?? "" });
       }
@@ -163,7 +176,8 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
       setCardForm({ number: "", name: "", expiry: "", cvv: "" });
       setShowCart(false);
       setCheckoutStep("cart");
-    }, 3000);
+      onOrdered?.();
+    }, 2500);
   }
   const cardValid = cardForm.number.replace(/\s/g, "").length === 16 && cardForm.name.trim().length > 2 && cardForm.expiry.length === 5 && cardForm.cvv.length >= 3;
   const canPay = payMode === "cash" || payMode.startsWith("card:") || (payMode === "new" && cardValid);
@@ -171,8 +185,11 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="mb-6">
-        <h1 className="font-display text-3xl font-semibold text-foreground">Nuestro Menú</h1>
-        <p className="text-muted-foreground text-sm mt-1 font-medium">Elige tu pastel favorito</p>
+        <h1 className="font-display text-3xl font-semibold text-foreground">{bakery ? `Menú de ${bakery.name}` : "Nuestro Menú"}</h1>
+        <p className="text-muted-foreground text-sm mt-1 font-medium">
+          {bakery ? "Productos de esta pastelería · " : "Elige tu pastel favorito"}
+          {bakery && <button onClick={onClearBakery} className="text-pink-500 font-bold hover:underline">Ver todas las pastelerías</button>}
+        </p>
       </div>
 
       {/* Categories */}
@@ -280,7 +297,8 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
                   <>
                     <div className="space-y-3 mb-5 max-h-56 overflow-y-auto">
                       {cart.map((c) => {
-                        const item = menuItems.find((i) => i.id === c.id)!;
+                        const item = findItem(c.id);
+                        if (!item) return null;
                         return (
                           <div key={lineKey(c)} className="flex items-center gap-3 p-3 bg-muted rounded-2xl">
                             <div className="w-12 h-12 rounded-xl overflow-hidden bg-pink-100 flex items-center justify-center shrink-0">

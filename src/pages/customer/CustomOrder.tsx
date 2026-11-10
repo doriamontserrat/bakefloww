@@ -4,6 +4,30 @@ import ImageLightbox from "../../components/ImageLightbox";
 import { api, uploadImage } from "../../services/api";
 import { toCustomRequest, type CustomRequest, type CustomRequestStatus } from "../../services/customRequests";
 import { ORDERS_CHANGED } from "../../hooks/useOrderCount";
+import { toISODate } from "../../utils/validators";
+
+// Mañana como fecha mínima: un pastel especial necesita tiempo de preparación
+const tomorrowStr = () => { const d = new Date(); d.setDate(d.getDate() + 1); return toISODate(d); };
+// Temática: solo letras y signos básicos (sin números)
+const THEME_RE = /^[\p{L} ,.'\-]+$/u;
+
+function validateStep2(f: { theme: string; message: string; persons: string; date: string; budget: string; notes: string }): string {
+  const theme = f.theme.trim();
+  if (theme && (theme.length < 3 || !THEME_RE.test(theme))) return "La temática solo puede llevar letras (sin números ni símbolos), mínimo 3.";
+  if (f.message.trim().length > 60) return "El mensaje del pastel no puede superar 60 caracteres.";
+  if (f.persons) {
+    const n = Number(f.persons);
+    if (!Number.isInteger(n) || n < 1 || n > 500) return "Las personas deben ser un número entero entre 1 y 500.";
+  }
+  if (!f.date) return "Indica la fecha requerida.";
+  if (f.date < tomorrowStr()) return "La fecha requerida debe ser a partir de mañana.";
+  if (f.budget) {
+    const n = Number(f.budget);
+    if (!Number.isFinite(n) || n <= 0 || n > 1000000) return "El presupuesto debe ser un monto mayor a 0.";
+  }
+  if (f.notes.length > 300) return "Las notas no pueden superar 300 caracteres.";
+  return "";
+}
 
 const FLAVORS = ["Vainilla", "Chocolate", "Fresa", "Limón", "Red Velvet", "Moka", "Nuez", "Zanahoria"];
 const FROSTINGS = ["Crema de mantequilla", "Ganache de chocolate", "Crema de queso", "Merengue", "Fondant", "Chantilly"];
@@ -43,8 +67,10 @@ export default function CustomOrder() { // <-- Ya no recibe props
 
   // Pastelerías disponibles para recibir la solicitud
   useEffect(() => {
-    api<{ bakeries: { _id: string; name: string }[] }>("/bakeries")
-      .then(({ bakeries }) => {
+    api<{ bakeries: { _id: string; name: string; allowsCustomCakes?: boolean }[] }>("/bakeries")
+      .then(({ bakeries: all }) => {
+        // Solo las pastelerías que aceptan pedidos especiales
+        const bakeries = all.filter((b) => b.allowsCustomCakes !== false);
         setBakeries(bakeries);
         if (bakeries.length === 1) setForm((f) => ({ ...f, bakeryId: bakeries[0]._id }));
       })
@@ -96,6 +122,7 @@ export default function CustomOrder() { // <-- Ya no recibe props
   // Enviar la solicitud: se crea un pedido personalizado pendiente de cotización
   // Enviar la solicitud: se crea un pedido personalizado pendiente de cotización
   async function submitNewRequest() {
+    if (step2Error) { setError(step2Error); return; }
     setIsSubmitting(true);
     setError("");
     
@@ -178,6 +205,7 @@ export default function CustomOrder() { // <-- Ya no recibe props
     }
   }
   const STEP_LABELS = ["Diseño", "Detalles", "Confirmación"];
+  const step2Error = validateStep2(form);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 md:px-6">
@@ -392,32 +420,32 @@ export default function CustomOrder() { // <-- Ya no recibe props
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-foreground mb-1.5 flex items-center gap-2"><Palette size={13} className="text-pink-400" /> Temática o diseño</label>
-                  <input type="text" value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value })}
+                  <input type="text" value={form.theme} onChange={e => setForm({ ...form, theme: e.target.value.replace(/[0-9]/g, "") })} maxLength={40}
                     placeholder="Ej: kawaii, unicornio, flores vintage..." className="input-base" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-foreground mb-1.5 flex items-center gap-2"><FileText size={13} className="text-pink-400" /> Mensaje en el pastel</label>
-                  <input type="text" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })}
+                  <input type="text" value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} maxLength={60}
                     placeholder="Ej: ¡Feliz cumpleaños Luna!" className="input-base" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-bold text-foreground mb-1.5">Personas</label>
-                    <input type="number" value={form.persons} onChange={e => setForm({ ...form, persons: e.target.value })} placeholder="15" className="input-base" />
+                    <input type="number" min={1} max={500} step={1} value={form.persons} onChange={e => setForm({ ...form, persons: e.target.value.replace(/\D/g, "") })} placeholder="15" className="input-base" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-foreground mb-1.5">Fecha requerida</label>
-                    <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input-base" />
+                    <input type="date" min={tomorrowStr()} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} className="input-base" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-foreground mb-1.5">Presupuesto aproximado</label>
-                  <input type="text" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })} placeholder="Ej: $500 - $700" className="input-base" />
+                  <label className="block text-sm font-bold text-foreground mb-1.5">Presupuesto aproximado ($)</label>
+                  <input type="number" min={1} step={1} value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value.replace(/\D/g, "") })} placeholder="Ej: 600" className="input-base" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-foreground mb-1.5">Notas adicionales</label>
                   <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                    placeholder="Alergias, indicaciones especiales..." rows={2}
+                    placeholder="Alergias, indicaciones especiales..." rows={2} maxLength={300}
                     className="input-base resize-none" />
                 </div>
                 <div>
@@ -441,9 +469,10 @@ export default function CustomOrder() { // <-- Ya no recibe props
                     </button>
                   )}
                 </div>
+                {step2Error && form.date && <div className="text-xs font-semibold text-pink-600">{step2Error}</div>}
                 <div className="flex gap-3">
                   <button onClick={() => setStep(1)} className="flex-1 py-3 border-2 border-border text-foreground font-bold rounded-2xl hover:bg-muted transition-colors">Atrás</button>
-                  <button onClick={() => setStep(3)} className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all">Revisar</button>
+                  <button onClick={() => { if (step2Error) { setError(step2Error); return; } setError(""); setStep(3); }} className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all">Revisar</button>
                 </div>
               </div>
             )}
@@ -489,7 +518,7 @@ export default function CustomOrder() { // <-- Ya no recibe props
                 <div className="flex gap-3">
                   <button onClick={() => setStep(2)} className="flex-1 py-3 border-2 border-border text-foreground font-bold rounded-2xl hover:bg-muted transition-colors">Atrás</button>
                   {/* SE HACE EL POST AL DAR CLIC AQUI */}
-                  <button onClick={submitNewRequest} disabled={isSubmitting || !form.bakeryId || !form.date} className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all disabled:opacity-50">
+                  <button onClick={submitNewRequest} disabled={isSubmitting || !form.bakeryId || !!step2Error} className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow-md active:scale-95 transition-all disabled:opacity-50">
                     {isSubmitting ? "Enviando..." : "Enviar solicitud"}
                   </button>
                 </div>

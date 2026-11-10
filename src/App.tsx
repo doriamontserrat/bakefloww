@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api, getToken, clearSession, saveStoredPlan, UNAUTHORIZED_EVENT, type PlanInfo } from "./services/api";
+import { api, getToken, clearSession, saveStoredPlan, updateStoredUser, UNAUTHORIZED_EVENT, type PlanInfo } from "./services/api";
 import AuthPage from "./pages/AuthPage";
 import CustomerApp from "./pages/customer/CustomerApp";
 import BakeryApp from "./pages/bakery/BakeryApp";
@@ -17,8 +17,8 @@ export default function App() {
   // Al cargar la página: si hay token guardado, validarlo con el backend y restaurar la sesión
   useEffect(() => {
     if (!getToken()) return;
-    api<{ user: { name: string; role: Role }; plan: PlanInfo | null }>("/auth/me")
-      .then(({ user, plan }) => { saveStoredPlan(plan); setSession({ role: user.role, name: user.name }); })
+    api<{ user: { name: string; role: Role; jobTitle?: string }; plan: PlanInfo | null }>("/auth/me")
+      .then(({ user, plan }) => { saveStoredPlan(plan); updateStoredUser({ jobTitle: user.jobTitle || "" }); setSession({ role: user.role, name: user.name }); })
       .catch(() => {}) // 401 ya limpia la sesión en api(); un fallo de red conserva el token
       .finally(() => setRestoring(false));
   }, []);

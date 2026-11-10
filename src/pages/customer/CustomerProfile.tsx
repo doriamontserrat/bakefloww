@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Phone, MapPin, Cake, User, Pencil, Check, Package, Lock, Eye, EyeOff } from "lucide-react";
-import { api, getStoredUser } from "../../services/api";
+import { api, updateStoredUser } from "../../services/api";
+import { validateName, validateTitle, validatePhone, validateAddress, validateBirthday, validatePassword, firstError, sanitizeField, maxBirthday, minBirthday } from "../../utils/validators";
 
 interface Props { userName: string; }
 
@@ -19,7 +20,8 @@ export default function CustomerProfile({ userName }: Props) {
 
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (pwForm.next.length < 8) { setPwError("La nueva contraseña debe tener al menos 8 caracteres."); return; }
+    const pwInvalid = validatePassword(pwForm.next);
+    if (pwInvalid) { setPwError(pwInvalid); return; }
     if (pwForm.next !== pwForm.confirm) { setPwError("Las contraseñas no coinciden."); return; }
     setPwError("");
     try {
@@ -54,13 +56,15 @@ export default function CustomerProfile({ userName }: Props) {
   }, []);
 
   async function save() {
+    const invalid = firstError(validateName(form.name), validatePhone(form.phone), validateAddress(form.address), validateBirthday(form.birthday));
+    if (invalid) { setError(invalid); return; }
     setError("");
     try {
       const { user } = await api<{ user: any }>("/users/profile", {
         method: "PUT",
         body: { name: form.name.trim(), phone: form.phone, address: form.address, birthday: form.birthday || null },
       });
-      localStorage.setItem("bakeflow_user", JSON.stringify({ ...getStoredUser(), name: user.name }));
+      updateStoredUser({ name: user.name });
       setForm((f) => ({ ...f, name: user.name }));
       setEditing(false);
       setSaved(true);
@@ -153,7 +157,8 @@ export default function CustomerProfile({ userName }: Props) {
               </label>
               {editing ? (
                 <input type={type} value={form[key as keyof typeof form]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  onChange={(e) => setForm({ ...form, [key]: sanitizeField(key, e.target.value) })}
+                  {...(type === "date" ? { min: minBirthday(), max: maxBirthday() } : {})} maxLength={key === "description" ? 300 : key === "address" ? 150 : 80}
                   className="w-full px-4 py-3 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 transition-colors text-sm font-medium" />
               ) : (
                 <div className="px-4 py-3 rounded-2xl bg-muted text-sm font-medium text-foreground">
@@ -193,7 +198,7 @@ export default function CustomerProfile({ userName }: Props) {
             <div className="relative">
               <input type={showNext ? "text" : "password"} value={pwForm.next}
                 onChange={e => { setPwForm(p => ({ ...p, next: e.target.value })); setPwError(""); }}
-                placeholder="Mínimo 8 caracteres" className="input-base pr-12" />
+                placeholder="Mín. 8: letra, número y carácter especial" className="input-base pr-12" />
               <button type="button" onClick={() => setShowNext(v => !v)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {showNext ? <EyeOff size={15} /> : <Eye size={15} />}

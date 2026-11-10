@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Clock, ChefHat, CheckCircle2, PartyPopper, XCircle, Cake } from "lucide-react";
 import { api } from "../../services/api";
+import { DATE_FILTERS, matchesDate, keyOf, compareByDate, type DateFilter } from "../../utils/dateFilter";
 
 interface Step { label: string; done: boolean; time: string; }
-interface OrderView { id: string; dbId: string; rawStatus: string; name: string; status: string; date: string; delivery: string; total: string; steps: Step[]; }
+interface OrderView { id: string; dbId: string; rawStatus: string; name: string; status: string; date: string; delivery: string; dateKey: string; total: string; steps: Step[]; }
 
 const FLOW = [
   { label: "Pedido recibido", statuses: ["pending_quote", "pending", "in_preparation", "ready", "delivered"] },
@@ -27,6 +28,7 @@ function toView(o: any): OrderView {
     name, status,
     date: fmtDate(o.createdAt),
     delivery: fmtDate(o.deliveryDate),
+    dateKey: keyOf(new Date(o.deliveryDate)),
     total: `$${o.totalPrice}`,
     steps: ["cancelled", "rejected", "declined"].includes(o.status)
       ? [{ label: "Cancelado", done: true, time: "" }]
@@ -51,13 +53,16 @@ export default function MyOrders() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [customDay, setCustomDay] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     api<{ orders: any[] }>("/orders")
       .then(({ orders }) => {
-        const views = orders.map(toView);
+        // Lo más reciente primero, para que una compra nueva aparezca arriba y seleccionada
+        const views = [...orders].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)).map(toView);
         setOrders(views);
         setSelected(views[0]?.id ?? null);
       })
@@ -66,7 +71,9 @@ export default function MyOrders() {
   }, []);
 
   const selectedOrder = orders.find((o) => o.id === selected);
-  const visible = orders.filter((o) => filter === "all" || o.status === filter);
+  const visible = orders
+    .filter((o) => matchesDate(o.dateKey, dateFilter, customDay) && (filter === "all" || o.status === filter))
+    .sort(compareByDate(dateFilter));
 
   async function cancelOrder(order: OrderView) {
     setCancelling(true);
@@ -95,6 +102,20 @@ export default function MyOrders() {
           {error && <div className="bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{error}</div>}
           {loading && <p className="text-sm text-muted-foreground">Cargando pedidos...</p>}
           {!loading && !error && orders.length === 0 && <p className="text-sm text-muted-foreground">Aún no tienes pedidos.</p>}
+          <div className="flex flex-wrap items-center gap-1.5" role="tablist" aria-label="Filtrar por fecha de entrega">
+            {DATE_FILTERS.map((f) => (
+              <button key={f.val} onClick={() => setDateFilter(f.val)} role="tab" aria-selected={dateFilter === f.val}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  dateFilter === f.val ? "border-violet-400 bg-violet-50 text-violet-600" : "border-border text-muted-foreground hover:border-violet-200"
+                }`}>
+                {f.label}
+              </button>
+            ))}
+            {dateFilter === "custom" && (
+              <input type="date" value={customDay} onChange={(e) => setCustomDay(e.target.value)}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold border border-violet-300 bg-card focus:outline-none" />
+            )}
+          </div>
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filtrar por estado">
             {FILTERS.map((f) => (
               <button key={f} onClick={() => setFilter(f)} role="tab" aria-selected={filter === f}
@@ -105,7 +126,7 @@ export default function MyOrders() {
               </button>
             ))}
           </div>
-          {!loading && orders.length > 0 && visible.length === 0 && <p className="text-sm text-muted-foreground">No tienes pedidos con este estado.</p>}
+          {!loading && orders.length > 0 && visible.length === 0 && <p className="text-sm text-muted-foreground">No tienes pedidos con estos filtros.</p>}
           {visible.map((order) => {
             const s = STATUS_MAP[order.status];
             return (

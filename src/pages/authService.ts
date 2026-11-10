@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   role: Role;
   bakeryId: string | null;
+  jobTitle?: string;
   plan?: { key: string; name: string; features: string[]; expiresAt: string | null } | null;
 }
 
@@ -51,8 +52,8 @@ async function post(path: string, body: unknown): Promise<AuthResponse> {
 }
 
 function saveSession(data: AuthResponse) {
-  localStorage.setItem("bakeflow_token", data.token);
-  localStorage.setItem("bakeflow_user", JSON.stringify(data.user));
+  sessionStorage.setItem("bakeflow_token", data.token);
+  sessionStorage.setItem("bakeflow_user", JSON.stringify(data.user));
 }
 
 export const loginUser = async (email: string, password: string) => {

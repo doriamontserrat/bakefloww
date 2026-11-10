@@ -1,11 +1,11 @@
 import { useState } from "react";
 import {
-  Home, Cake, Sparkles, Package, Bell, User, Calendar, Users,
+  Home, Cake, Sparkles, Package, User, Calendar, Users,
   DollarSign, Star, BarChart2, AlertTriangle, CreditCard,
-  Tag, LogOut, ChevronLeft, ChevronRight, Store, Menu, X, ShoppingBag, Settings,
+  Tag, LogOut, ChevronLeft, ChevronRight, Store, Menu, X, ShoppingBag,
 } from "lucide-react";
 import Logo from "./Logo";
-import { hasFeature } from "../services/api";
+import { hasFeature, isCashier } from "../services/api";
 
 type Role = "customer" | "bakery" | "employee" | "admin";
 
@@ -14,6 +14,7 @@ interface NavItem {
   label: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
   feature?: string;  // función del plan que desbloquea esta sección
+  cashierOnly?: boolean; // solo la empleada con puesto "Cajera"
 }
 
 interface LayoutProps {
@@ -32,7 +33,6 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { id: "menu", label: "Menú", Icon: Cake },
     { id: "custom-order", label: "Pastel especial", Icon: Sparkles },
     { id: "my-orders", label: "Mis pedidos", Icon: Package },
-    { id: "notifications", label: "Notificaciones", Icon: Bell },
   ],
   bakery: [
     { id: "home", label: "Dashboard", Icon: Home },
@@ -48,20 +48,17 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
   ],
   employee: [
     { id: "calendar", label: "Calendario", Icon: Calendar },
-    { id: "pos", label: "Ventas", Icon: ShoppingBag },
+    { id: "pos", label: "Ventas", Icon: ShoppingBag, cashierOnly: true },
     { id: "my-tasks", label: "Mis pedidos", Icon: Package },
-    { id: "notifications", label: "Notificaciones", Icon: Bell },
   ],
   admin: [
     { id: "home", label: "Dashboard", Icon: Home },
     { id: "bakeries", label: "Pastelerías", Icon: Store },
     { id: "users", label: "Usuarios", Icon: Users },
-    { id: "categories", label: "Categorías", Icon: Tag },
     { id: "subscriptions", label: "Suscripciones", Icon: Star },
     { id: "transactions", label: "Transacciones", Icon: CreditCard },
     { id: "stats", label: "Estadísticas", Icon: BarChart2 },
     { id: "incidents", label: "Incidencias", Icon: AlertTriangle },
-    { id: "settings", label: "Configuración", Icon: Settings },
   ],
 };
 
@@ -84,7 +81,9 @@ export default function Layout({ role, userName, activePage, onNavigate, onLogou
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   // Las secciones que el plan no incluye se ocultan del menú
-  const navItems = NAV_ITEMS[role].filter((n) => !n.feature || role !== "bakery" || hasFeature(n.feature));
+  const navItems = NAV_ITEMS[role]
+    .filter((n) => !n.feature || role !== "bakery" || hasFeature(n.feature))
+    .filter((n) => !n.cashierOnly || isCashier());
   const meta = ROLE_META[role];
   const mobileTabs = MOBILE_TABS[role].map((id) => navItems.find((n) => n.id === id)!).filter(Boolean);
 
@@ -103,10 +102,6 @@ export default function Layout({ role, userName, activePage, onNavigate, onLogou
         </button>
         <Logo size={30} className="rounded-xl shrink-0" />
         <span className="font-display text-lg font-bold text-pink-500 flex-1 leading-none">BakeFlow</span>
-        {notifications > 0 && (
-          <button onClick={() => navItems.some((n) => n.id === "notifications") && onNavigate("notifications")}
-            className="w-6 h-6 bg-pink-500 text-white text-xs font-bold rounded-full flex items-center justify-center shrink-0">{notifications}</button>
-        )}
       </header>
 
       {/* ── MOBILE DRAWER OVERLAY ──────────────────────── */}
@@ -163,9 +158,6 @@ export default function Layout({ role, userName, activePage, onNavigate, onLogou
               {active && <span className={`absolute -top-0.5 left-1/2 -translate-x-1/2 w-6 h-1 ${meta.activeMobileBar} rounded-full`} />}
               <Icon size={20} />
               <span className="text-[10px] font-bold">{label}</span>
-              {id === "notifications" && notifications > 0 && (
-                <span className="absolute top-1 right-2 w-4 h-4 bg-pink-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{notifications}</span>
-              )}
             </button>
           );
         })}
@@ -229,16 +221,6 @@ function SidebarContent({ role, meta, userName, navItems, activePage, notificati
             >
               <Icon size={18} className="shrink-0" />
               {!collapsed && <span className="truncate flex-1 text-left">{label}</span>}
-              {!collapsed && id === "notifications" && notifications > 0 && (
-                <span className="ml-auto bg-pink-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shrink-0">
-                  {notifications}
-                </span>
-              )}
-              {collapsed && id === "notifications" && notifications > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-3.5 h-3.5 bg-pink-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center">
-                  {notifications}
-                </span>
-              )}
             </button>
           );
         })}

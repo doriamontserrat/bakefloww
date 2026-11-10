@@ -10,11 +10,10 @@ import Finances from "./Finances";
 import SubscriptionPage from "./SubscriptionPage";
 import BakeryIncidents from "./BakeryIncidents";
 import BakeryProfile from "./BakeryProfile";
-import BakeryCategories from "../admin/AdminCategories";
+import BakeryCategories from "./BakeryCategories";
 import BakeryPOS from "./BakeryPOS";
 import Reports from "./Reports";
 import { hasFeature } from "../../services/api";
-import { useOrderCount } from "../../hooks/useOrderCount";
 
 interface Props {
   userName: string;
@@ -42,11 +41,9 @@ export default function BakeryApp({ userName, onLogout }: Props) {
     profile: <BakeryProfile userName={userName} onNavigate={setPage} />,
   };
 
-  // Solicitudes personalizadas pendientes de cotizar
-  const pendingCount = useOrderCount("type=custom&status=pending_quote"); 
 
   return (
-    <Layout role="bakery" userName={userName} activePage={page} onNavigate={setPage} onLogout={onLogout} notifications={pendingCount}>
+    <Layout role="bakery" userName={userName} activePage={page} onNavigate={setPage} onLogout={onLogout}>
       {pages[page] ?? pages["home"]}
     </Layout>
   );

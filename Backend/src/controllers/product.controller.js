@@ -1,6 +1,35 @@
 const Product = require('../models/Product.model');
 const Order = require('../models/Order.model');
+const Category = require('../models/Category.model');
+const v = require('../utils/validators');
 const { pick, canAccessBakery, forbidden, notFound, isCastError } = require('../utils/access');
+
+// Valida los campos de producto presentes en `data` (en la creación se exige todo).
+async function validateProduct(data, bakeryId, creating) {
+  const need = (key) => creating || key in data;
+  const text = (x) => (typeof x === 'string' ? x.trim() : '');
+  if (need('name')) {
+    const m = v.validateTitle(data.name, 'El nombre del producto', 2, 80);
+    if (m) return m;
+  }
+  if (need('price')) {
+    const m = v.validatePrice(data.price, 'El precio');
+    if (m) return m;
+  }
+  if (need('imageUrl') && !text(data.imageUrl)) return 'La imagen del producto es obligatoria.';
+  if (need('description')) {
+    const d = text(data.description);
+    if (d.length < 10) return 'La descripción es obligatoria (mínimo 10 caracteres).';
+    if (d.length > 500) return 'La descripción no puede superar 500 caracteres.';
+  }
+  if (need('categoryId')) {
+    if (!data.categoryId) return 'Selecciona una categoría.';
+    const cat = await Category.findById(data.categoryId).catch(() => null);
+    if (!cat || (cat.bakeryId && String(cat.bakeryId) !== String(bakeryId))) return 'La categoría seleccionada no es válida.';
+  }
+  if ('stock' in data && (!Number.isInteger(Number(data.stock)) || Number(data.stock) < 0)) return 'El stock debe ser un número entero mayor o igual a 0.';
+  return '';
+}
 
 const PRODUCT_FIELDS = ['categoryId', 'name', 'description', 'price', 'imageUrl', 'sizes', 'flavors', 'stock', 'isAvailable'];
 
@@ -27,7 +56,10 @@ exports.createProduct = async (req, res) => {
     if (!bakeryId) {
       return res.status(400).json({ ok: false, message: 'No hay pastelería asociada para crear el producto.' });
     }
-    const product = await Product.create({ ...pick(req.body, PRODUCT_FIELDS), bakeryId });
+    const data = pick(req.body, PRODUCT_FIELDS);
+    const invalid = await validateProduct(data, bakeryId, true);
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
+    const product = await Product.create({ ...data, bakeryId });
     res.status(201).json({ ok: true, message: 'Pastel agregado al menú', product });
   } catch (error) {
     res.status(400).json({ ok: false, message: 'Error al crear producto', error: error.message });
@@ -41,6 +73,8 @@ exports.updateProduct = async (req, res) => {
     if (!canAccessBakery(req.user, product.bakeryId)) return forbidden(res);
 
     const data = pick(req.body, PRODUCT_FIELDS);
+    const invalid = await validateProduct(data, product.bakeryId, false);
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
     const wasOutOfStock = product.stock <= 0;
     product.set(data);
     // Al reponer un producto agotado vuelve a estar disponible (salvo que se indique lo contrario)

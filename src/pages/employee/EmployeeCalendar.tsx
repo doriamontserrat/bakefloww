@@ -66,9 +66,14 @@ export default function EmployeeCalendar({ onNavigate }: Props = {}) {
   const selectedOrders = selectedKey ? (ordersData[selectedKey] ?? []) : [];
   const selectedDay = selectedKey ? Number(selectedKey.split("-")[2]) : null;
 
-  // Next upcoming task reminder
-  const upcomingKey = monthEntries.find(([, orders]) => orders.some(o => o.status !== "ready"))?.[0];
-  const upcomingDay = upcomingKey ? Number(upcomingKey.split("-")[2]) : null;
+  // Próximo pedido: la fecha más cercana desde hoy (en cualquier mes) con algún pedido sin terminar
+  const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+  const upcomingKey = Object.keys(ordersData)
+    .filter((k) => k >= todayKey && ordersData[k].some((o) => o.status !== "ready" && o.status !== "delivered"))
+    .sort()[0];
+  const upcomingLabel = upcomingKey
+    ? (() => { const [, m, d] = upcomingKey.split("-").map(Number); return upcomingKey === todayKey ? "hoy" : `el ${d} de ${MONTH_NAMES[m - 1]}`; })()
+    : null;
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -139,13 +144,13 @@ export default function EmployeeCalendar({ onNavigate }: Props = {}) {
         {/* Side */}
         <div className="space-y-4">
           {/* Reminder */}
-          {upcomingDay && (
+          {upcomingLabel && (
             <div className="bg-purple-50 border-2 border-purple-200 rounded-3xl p-4 shadow-sm">
               <div className="flex items-center gap-2 font-bold text-purple-700 text-sm mb-1">
                 <Lightbulb size={16} className="text-purple-600 fill-purple-100" /> Próxima entrega
               </div>
               <div className="text-xs text-purple-700 font-medium">
-                Tienes un pedido el {upcomingDay} de {MONTH_NAMES[month]}. Revisa los detalles.
+                Tienes un pedido {upcomingLabel}. Revisa los detalles.
               </div>
             </div>
           )}

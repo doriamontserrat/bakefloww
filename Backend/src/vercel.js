@@ -13,6 +13,7 @@ function init() {
       }
       await mongoose.connect(process.env.MONGO_URI);
       await require('./models/Plan.model').ensureDefaults();
+      require('./models/Category.model').syncIndexes().catch((e) => console.error('syncIndexes Category:', e.message));
     })().catch((err) => {
       ready = null; // permitir reintento en la siguiente petición
       throw err;

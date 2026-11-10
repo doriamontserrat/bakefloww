@@ -4,6 +4,7 @@ const Order = require('../models/Order.model');
 const Notification = require('../models/Notification.model');
 const Incident = require('../models/Incident.model');
 const { ACTIVE_STATUSES, deleteBakeryCascade } = require('../utils/cascade');
+const v = require('../utils/validators');
 const { pick, publicUser, canAccessBakery, notFound, forbidden } = require('../utils/access');
 
 // Admin: todos (filtro ?role=). Pastelería: solo los empleados de su pastelería.
@@ -32,9 +33,9 @@ exports.createUser = async (req, res) => {
     if (!['customer', 'bakery', 'employee', 'admin'].includes(role)) {
       return res.status(400).json({ ok: false, message: 'Rol inválido.' });
     }
-    if (typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La contraseña debe tener mínimo 6 caracteres.' });
-    }
+    const invalid = v.firstError(v.validateName(name), v.validateEmail(email), v.validatePassword(password), v.validatePhone(phone),
+      role === 'bakery' && bakeryName ? v.validateTitle(bakeryName, 'El nombre de la pastelería') : '');
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
 
     let bakeryId = null;
     if (role === 'employee') {
@@ -75,7 +76,8 @@ exports.verifyCredentials = async (req, res) => {
     const valid =
       typeof email === 'string' && typeof password === 'string' &&
       user && user.email === email.trim().toLowerCase() && (await user.comparePassword(password));
-    if (!valid) return res.status(401).json({ ok: false, message: 'Credenciales incorrectas.' });
+    // 403 (no 401): un 401 el frontend lo interpreta como sesión vencida y cerraría la sesión
+    if (!valid) return res.status(403).json({ ok: false, message: 'Credenciales incorrectas.' });
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ ok: false, message: 'Error al validar las credenciales' });
@@ -86,6 +88,8 @@ exports.verifyCredentials = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const data = pick(req.body, ['name', 'phone', 'address', 'birthday', 'profilePhoto']);
+    const invalid = v.validateProfileFields(data);
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
     if ('birthday' in data) data.birthday = data.birthday || null;
     const user = await User.findByIdAndUpdate(req.user.id, data, { new: true, runValidators: true });
     res.json({ ok: true, message: 'Perfil actualizado', user });
@@ -101,9 +105,8 @@ exports.changePassword = async (req, res) => {
     if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
       return res.status(400).json({ ok: false, message: 'Contraseña actual y nueva son obligatorias.' });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La nueva contraseña debe tener mínimo 6 caracteres.' });
-    }
+    const invalid = v.validatePassword(newPassword);
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
     const user = await User.findById(req.user.id).select('+password');
     if (!user || !(await user.comparePassword(currentPassword))) {
       return res.status(400).json({ ok: false, message: 'La contraseña actual es incorrecta.' });
@@ -148,9 +151,8 @@ exports.createEmployee = async (req, res) => {
       return res.status(400).json({ ok: false, message: 'No hay pastelería asociada para el empleado.' });
     }
     const { name, email, password, phone, jobTitle } = req.body;
-    if (typeof password !== 'string' || password.length < 6) {
-      return res.status(400).json({ ok: false, message: 'La contraseña debe tener mínimo 6 caracteres.' });
-    }
+    const invalid = v.firstError(v.validateName(name), v.validateEmail(email), v.validatePassword(password), v.validatePhone(phone));
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
     const employee = await User.create({ name, email, password, phone, jobTitle, role: 'employee', bakeryId });
     res.status(201).json({ ok: true, message: 'Empleado registrado en la pastelería', employee: publicUser(employee) });
   } catch (error) {
@@ -171,6 +173,8 @@ exports.updateEmployee = async (req, res) => {
     if (!canAccessBakery(req.user, employee.bakeryId)) return forbidden(res);
 
     const data = pick(req.body, ['name', 'phone', 'jobTitle', 'status']);
+    const invalid = v.validateProfileFields(data);
+    if (invalid) return res.status(400).json({ ok: false, message: invalid });
     if (data.status && !['active', 'suspended'].includes(data.status)) {
       return res.status(400).json({ ok: false, message: 'Estado inválido.' });
     }
@@ -197,7 +201,7 @@ exports.authorizeSupervisor = async (req, res) => {
       req.user.bakeryId &&
       String(supervisor.bakeryId) === String(req.user.bakeryId) &&
       (await supervisor.comparePassword(password));
-    if (!valid) return res.status(401).json({ ok: false, message: 'Usuario o contraseña de la pastelería incorrectos.' });
+    if (!valid) return res.status(403).json({ ok: false, message: 'Usuario o contraseña de la pastelería incorrectos.' });
     res.json({ ok: true, message: 'Autorizado' });
   } catch (error) {
     res.status(500).json({ ok: false, message: 'Error al validar la autorización' });

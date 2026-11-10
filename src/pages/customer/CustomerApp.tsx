@@ -5,10 +5,7 @@ import CustomerHome from "./CustomerHome";
 import CustomerMenu, { type CartLine } from "./CustomerMenu";
 import CustomOrder from "./CustomOrder";
 import MyOrders from "./MyOrders";
-import CustomerNotifications from "./CustomerNotifications";
 import CustomerProfile from "./CustomerProfile";
-import { useUnreadNotifications } from "../../hooks/useUnreadNotifications";
-import { useOrderCount } from "../../hooks/useOrderCount";
 
 interface Props {
   userName: string;
@@ -20,13 +17,9 @@ export default function CustomerApp({ userName, onLogout }: Props) {
   const [page, setPage] = useState("home");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [showCart, setShowCart] = useState(false);
+  const [menuBakery, setMenuBakery] = useState<{ id: string; name: string } | null>(null);
 
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
-  const unreadNotifs = useUnreadNotifications();
-  
-  // Notificaciones sin leer + cotizaciones esperando tu respuesta
-  const quotesWaiting = useOrderCount("type=custom&status=awaiting_client");
-  const pendingPrice = unreadNotifs + quotesWaiting; 
 
   function openCart() {
     if (page !== "menu") setPage("menu");
@@ -34,18 +27,17 @@ export default function CustomerApp({ userName, onLogout }: Props) {
   }
 
   const pages: Record<string, React.ReactNode> = {
-    home: <CustomerHome userName={userName} onNavigate={setPage} />,
-    menu: <CustomerMenu cart={cart} setCart={setCart} showCart={showCart} setShowCart={setShowCart} />,
+    home: <CustomerHome userName={userName} onNavigate={(p) => { if (p === "menu") setMenuBakery(null); setPage(p); }} onOpenBakery={(b) => { setMenuBakery(b); setPage("menu"); }} />,
+    menu: <CustomerMenu cart={cart} setCart={setCart} showCart={showCart} setShowCart={setShowCart} bakery={menuBakery} onClearBakery={() => setMenuBakery(null)} onOrdered={() => setPage("my-orders")} />,
     // 3. Ya no le pasamos props a CustomOrder (hará su propio fetch igual que CustomRequests)
     "custom-order": <CustomOrder />,
     "my-orders": <MyOrders />,
-    notifications: <CustomerNotifications />,
     profile: <CustomerProfile userName={userName} />,
   };
 
   return (
     <>
-      <Layout role="customer" userName={userName} activePage={page} onNavigate={setPage} onLogout={onLogout} notifications={pendingPrice}>
+      <Layout role="customer" userName={userName} activePage={page} onNavigate={(p) => { if (p === "menu" && page !== "menu") setMenuBakery(null); setPage(p); }} onLogout={onLogout}>
         {pages[page] ?? pages["home"]}
       </Layout>
       {/* Global floating cart button */}

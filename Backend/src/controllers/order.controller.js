@@ -74,6 +74,10 @@ exports.createOrder = async (req, res) => {
     const isStaff = ['bakery', 'employee', 'admin'].includes(req.user.role);
     // Solo el personal puede registrar ventas de mostrador
     const isPointOfSale = isStaff && req.body.isPointOfSale === true;
+    // En una pastelería solo la cajera (empleada con puesto "Cajera") registra ventas de mostrador
+    if (isPointOfSale && req.user.role === 'employee' && req.user.jobTitle !== 'Cajera') {
+      return res.status(403).json({ ok: false, message: 'Solo las cajeras pueden registrar ventas.' });
+    }
     const type = orderType === 'custom' ? 'custom' : 'standard';
     const paymentMethod = PAYMENT_METHODS.includes(req.body.paymentMethod) ? req.body.paymentMethod : 'pending';
 
@@ -117,6 +121,9 @@ exports.createOrder = async (req, res) => {
         return res.status(400).json({ ok: false, message: 'La pastelería alcanzó el límite de pedidos de su plan este mes.' });
       }
     }
+    if (type === 'custom' && !isStaff && targetBakery.allowsCustomCakes === false) {
+      return res.status(400).json({ ok: false, message: 'Esta pastelería no acepta pedidos especiales.' });
+    }
     if (!deliveryDate || Number.isNaN(new Date(deliveryDate).getTime())) {
       return res.status(400).json({ ok: false, message: 'La fecha de entrega es obligatoria.' });
     }
@@ -124,6 +131,21 @@ exports.createOrder = async (req, res) => {
       const today = new Date(); today.setHours(0, 0, 0, 0);
       if (new Date(deliveryDate) < today) {
         return res.status(400).json({ ok: false, message: 'La fecha de entrega no puede estar en el pasado.' });
+      }
+      if (type === 'custom') {
+        const c = customDetails || {};
+        const theme = String(c.theme || '').trim();
+        if (theme && (theme.length < 3 || theme.length > 40 || !/^[\p{L} ,.'\-]+$/u.test(theme))) {
+          return res.status(400).json({ ok: false, message: 'La temática solo puede llevar letras (sin números).' });
+        }
+        if (c.persons !== undefined && c.persons !== '' && !(Number.isInteger(Number(c.persons)) && Number(c.persons) >= 1 && Number(c.persons) <= 500)) {
+          return res.status(400).json({ ok: false, message: 'Las personas deben ser un número entero entre 1 y 500.' });
+        }
+        if (c.budget !== undefined && c.budget !== '' && !(Number(c.budget) > 0 && Number(c.budget) <= 1000000)) {
+          return res.status(400).json({ ok: false, message: 'El presupuesto debe ser un monto mayor a 0.' });
+        }
+        if (String(c.message || '').length > 60) return res.status(400).json({ ok: false, message: 'El mensaje del pastel no puede superar 60 caracteres.' });
+        if (String(c.specialInstructions || '').length > 300) return res.status(400).json({ ok: false, message: 'Las notas no pueden superar 300 caracteres.' });
       }
     }
     const deliveryAddress = String(req.body.deliveryAddress || '').trim().slice(0, 300);

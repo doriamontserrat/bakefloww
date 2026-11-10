@@ -4,6 +4,7 @@ import Logo from "../components/Logo";
 import newLogoImg from "@/imports/0d72255c-5f7a-9c92-b256-12eb6a4e2091.jpeg";
 import { loginUser, registerUser, type Role } from "./authService";
 import { api, uploadImage } from "../services/api";
+import { validateName, validateTitle, validateEmail, validatePassword, validatePhone, validateAddress, validateBirthday, firstError, sanitizePhone, maxBirthday, minBirthday } from "../utils/validators";
 
 interface AuthPageProps {
   onLogin: (role: Role, name: string) => void;
@@ -57,8 +58,16 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    if (!regForm.name || !regForm.email || !regForm.password) { setError("Por favor completa los campos obligatorios."); return; }
-    if (regForm.password.length < 6) { setError("La contraseña debe tener mínimo 6 caracteres."); return; }
+    const invalid = firstError(
+      validateName(regForm.name),
+      role === "bakery" ? validateTitle(regForm.bakeryName, "El nombre de la pastelería") : "",
+      validatePhone(regForm.phone),
+      validateAddress(regForm.address),
+      validateBirthday(regForm.birthday),
+      validateEmail(regForm.email),
+      validatePassword(regForm.password),
+    );
+    if (invalid) { setError(invalid); return; }
     setError("");
     setLoading(true);
     try {
@@ -87,6 +96,8 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
   }
 
   function setReg(key: string, val: string) {
+    if (key === "name") val = val.replace(/[0-9]/g, "");
+    if (key === "phone") val = sanitizePhone(val);
     setRegForm(p => ({ ...p, [key]: val }));
   }
 
@@ -250,7 +261,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                   <User size={13} className="text-pink-400" /> Nombre completo <span className="text-pink-500">*</span>
                 </label>
                 <input type="text" value={regForm.name} onChange={(e) => setReg("name", e.target.value)}
-                  placeholder="Tu nombre completo" className="input-base" />
+                  placeholder="Tu nombre completo" maxLength={60} className="input-base" />
               </div>
 
               {/* Bakery name (conditional) */}
@@ -260,7 +271,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                     <Store size={13} className="text-pink-400" /> Nombre de tu pastelería
                   </label>
                   <input type="text" value={regForm.bakeryName} onChange={(e) => setReg("bakeryName", e.target.value)}
-                    placeholder="Pastelería La Dulce Vida" className="input-base" />
+                    placeholder="Pastelería La Dulce Vida" maxLength={80} className="input-base" />
                 </div>
               )}
 
@@ -270,7 +281,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                   <Phone size={13} className="text-pink-400" /> Teléfono
                 </label>
                 <input type="tel" value={regForm.phone} onChange={(e) => setReg("phone", e.target.value)}
-                  placeholder="+52 55 1234 5678" className="input-base" />
+                  placeholder="+52 55 1234 5678" maxLength={18} className="input-base" />
               </div>
 
               {/* Address */}
@@ -279,7 +290,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                   <MapPin size={13} className="text-pink-400" /> Dirección
                 </label>
                 <input type="text" value={regForm.address} onChange={(e) => setReg("address", e.target.value)}
-                  placeholder="Calle, colonia, ciudad" className="input-base" />
+                  placeholder="Calle, número, colonia, ciudad" maxLength={150} className="input-base" />
               </div>
 
               {/* Birthday */}
@@ -288,13 +299,13 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                   <Calendar size={13} className="text-pink-400" /> Fecha de nacimiento
                 </label>
                 <input type="date" value={regForm.birthday} onChange={(e) => setReg("birthday", e.target.value)}
-                  className="input-base" />
+                  min={minBirthday()} max={maxBirthday()} className="input-base" />
               </div>
 
               {/* Email */}
               <div>
                 <label className="block text-sm font-bold text-foreground mb-1.5">Correo electrónico <span className="text-pink-500">*</span></label>
-                <input type="email" value={regForm.email} onChange={(e) => setReg("email", e.target.value)}
+                <input type="email" maxLength={254} value={regForm.email} onChange={(e) => setReg("email", e.target.value)}
                   placeholder="tu@correo.com" className="input-base" />
               </div>
 
@@ -303,7 +314,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                 <label className="block text-sm font-bold text-foreground mb-1.5">Contraseña <span className="text-pink-500">*</span></label>
                 <div className="relative">
                   <input type={showRegPw ? "text" : "password"} value={regForm.password} onChange={(e) => setReg("password", e.target.value)}
-                    placeholder="Mínimo 6 caracteres" className="input-base pr-12" />
+                    placeholder="Mín. 8: letra, número y carácter especial" className="input-base pr-12" />
                   <button type="button" onClick={() => setShowRegPw(!showRegPw)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     {showRegPw ? <EyeOff size={16} /> : <Eye size={16} />}

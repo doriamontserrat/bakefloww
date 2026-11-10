@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../../services/api";
+import { validateName, validateEmail, validatePhone, validatePassword, validateTitle, firstError, sanitizeField } from "../../utils/validators";
 import { Search, ShoppingBag, Store, Users, User, ShieldOff, ShieldCheck, Plus, X, Mail, Phone, Lock } from "lucide-react";
 
 interface UserRow { id: string; name: string; email: string; role: string; bakery: string; status: string; date: string; }
@@ -65,13 +66,16 @@ export default function AdminUsers() {
     }
   }
   function setF(key: string, val: string) {
-    setForm((p) => ({ ...p, [key]: val }));
+    setForm((p) => ({ ...p, [key]: sanitizeField(key, val) }));
   }
 
   async function createUser(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) { setFormError("Nombre, correo y contraseña son obligatorios."); return; }
-    if (form.password.length < 6) { setFormError("La contraseña debe tener mínimo 6 caracteres."); return; }
+    const invalid = firstError(
+      validateName(form.name), validateEmail(form.email), validatePhone(form.phone), validatePassword(form.password),
+      form.role === "bakery" && form.bakery.trim() ? validateTitle(form.bakery, "El nombre de la pastelería") : "",
+    );
+    if (invalid) { setFormError(invalid); return; }
     setSaving(true);
     try {
       const { user } = await api<{ user: any }>("/users", {

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { api, getStoredUser, uploadImage } from "../../services/api";
+import { api, getStoredUser, updateStoredUser, uploadImage } from "../../services/api";
+import { validateName, validateTitle, validatePhone, validateAddress, validateBirthday, validatePassword, firstError, sanitizeField, maxBirthday, minBirthday } from "../../utils/validators";
 import { Mail, Phone, MapPin, User, Pencil, Check, Store, ImagePlus, X, Cake, Users, DollarSign, Lock, Eye, EyeOff, Star, AlertTriangle } from "lucide-react";
 
 interface Props { userName: string; onNavigate: (page: string) => void; }
@@ -56,7 +57,8 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
 
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
-    if (pwForm.next.length < 8) { setPwError("La nueva contraseña debe tener al menos 8 caracteres."); return; }
+    const pwInvalid = validatePassword(pwForm.next);
+    if (pwInvalid) { setPwError(pwInvalid); return; }
     if (pwForm.next !== pwForm.confirm) { setPwError("Las contraseñas no coinciden."); return; }
     setPwError("");
     try {
@@ -82,6 +84,8 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
   }
 
   async function save() {
+    const invalid = firstError(validateName(form.ownerName, "El nombre del dueño"), validateTitle(form.bakeryName, "El nombre de la pastelería"), validatePhone(form.phone), validateAddress(form.address), form.description.length > 300 ? "La descripción no puede superar 300 caracteres." : "");
+    if (invalid) { setLoadError(invalid); return; }
     setLoadError("");
     try {
       const { user } = await api<{ user: any }>("/users/profile", { method: "PUT", body: { name: form.ownerName.trim(), phone: form.phone } });
@@ -89,7 +93,7 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
         method: "PUT",
         body: { name: form.bakeryName.trim(), description: form.description, address: form.address, phone: form.phone, logoUrl: photo },
       });
-      localStorage.setItem("bakeflow_user", JSON.stringify({ ...getStoredUser(), name: user.name }));
+      updateStoredUser({ name: user.name });
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -231,7 +235,8 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
               </label>
               {editing ? (
                 <input type={type} disabled={key === "email"} value={form[key as keyof typeof form]}
-                  onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                  onChange={(e) => setForm({ ...form, [key]: sanitizeField(key, e.target.value) })}
+                  {...(type === "date" ? { min: minBirthday(), max: maxBirthday() } : {})} maxLength={key === "description" ? 300 : key === "address" ? 150 : 80}
                   className="w-full px-4 py-3 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 transition-colors text-sm font-medium" />
               ) : (
                 <div className="px-4 py-3 rounded-2xl bg-muted text-sm font-medium text-foreground">
@@ -271,7 +276,7 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
             <div className="relative">
               <input type={showNext ? "text" : "password"} value={pwForm.next}
                 onChange={e => { setPwForm(p => ({ ...p, next: e.target.value })); setPwError(""); }}
-                placeholder="Mínimo 8 caracteres" className="input-base pr-12" />
+                placeholder="Mín. 8: letra, número y carácter especial" className="input-base pr-12" />
               <button type="button" onClick={() => setShowNext(v => !v)}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {showNext ? <EyeOff size={15} /> : <Eye size={15} />}

@@ -5,11 +5,13 @@ import { api } from "../../services/api";
 interface Props {
   userName: string;
   onNavigate: (page: string) => void;
+  /** Abre el menú solo con los productos de esa pastelería */
+  onOpenBakery: (bakery: { id: string; name: string }) => void;
 }
 
 interface Popular { _id: string; name: string; price: number; imageUrl: string; bakeryId?: { name: string } }
 interface BakeryCard { _id: string; name: string; address: string; logoUrl: string; description: string }
-export default function CustomerHome({ userName, onNavigate }: Props) {
+export default function CustomerHome({ userName, onNavigate, onOpenBakery }: Props) {
   const [popular, setPopular] = useState<Popular[]>([]);
   const [bakeries, setBakeries] = useState<BakeryCard[]>([]);
   const [error, setError] = useState("");
@@ -104,7 +106,7 @@ export default function CustomerHome({ userName, onNavigate }: Props) {
         {bakeries.length === 0 && !error && <p className="text-sm text-muted-foreground">Aún no hay pastelerías disponibles.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {bakeries.map((b) => (
-            <button key={b._id} onClick={() => onNavigate("menu")}
+            <button key={b._id} onClick={() => onOpenBakery({ id: b._id, name: b.name })}
               className="bg-card rounded-3xl card-shadow border border-border p-4 flex items-center gap-4 text-left hover:border-pink-200 transition-all">
               <div className="w-14 h-14 rounded-2xl overflow-hidden bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center shrink-0">
                 {b.logoUrl ? <img src={b.logoUrl} alt={b.name} className="w-full h-full object-cover" /> : <Gift size={22} className="text-pink-400" />}

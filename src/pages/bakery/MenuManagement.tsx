@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, Pencil, Trash2, X, Cake, ImagePlus, Package } from "lucide-react";
 import { api, getStoredUser, uploadImage } from "../../services/api";
+import { validateTitle, validatePrice } from "../../utils/validators";
 
 interface Item { 
   id: string; 
@@ -13,7 +14,7 @@ interface Item {
   image: string; 
   stock: number; 
 }
-interface Category { _id: string; name: string; }
+interface Category { _id: string; name: string; isActive?: boolean; }
 
 function toItem(p: any): Item {
   return {
@@ -27,6 +28,7 @@ export default function MenuManagement() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [formError, setFormError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
   const [form, setForm] = useState({ name: "", categoryId: "", price: "", desc: "", image: "", stock: "0" });
@@ -45,12 +47,14 @@ export default function MenuManagement() {
 
   function openNew() {
     setEditItem(null);
+    setFormError("");
     setForm({ name: "", categoryId: "", price: "", desc: "", image: "", stock: "0" });
     setShowModal(true);
   }
   
   function openEdit(item: Item) {
     setEditItem(item);
+    setFormError("");
     setForm({ 
       name: item.name, 
       categoryId: item.categoryId || "", 
@@ -65,25 +69,34 @@ export default function MenuManagement() {
   async function handleImageFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setError("");
+    setFormError("");
     try {
       const url = await uploadImage(file);
       setForm((f) => ({ ...f, image: url }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo subir la imagen.");
+      setFormError(err instanceof Error ? err.message : "No se pudo subir la imagen.");
     }
   }
 
   async function save() {
-    if (!form.name.trim()) return;
+    const stock = Number(form.stock);
+    const invalid =
+      validateTitle(form.name, "El nombre del producto", 2, 80) ||
+      (!form.categoryId ? "Selecciona una categoría." : "") ||
+      validatePrice(form.price, "El precio") ||
+      (!Number.isInteger(stock) || stock < 0 ? "El stock debe ser un número entero mayor o igual a 0." : "") ||
+      (!form.image ? "La imagen del producto es obligatoria." : "") ||
+      (form.desc.trim().length < 10 ? "La descripción es obligatoria (mínimo 10 caracteres)." : form.desc.trim().length > 500 ? "La descripción no puede superar 500 caracteres." : "");
+    if (invalid) { setFormError(invalid); return; }
+    setFormError("");
     setError("");
     const body = {
-      name: form.name.trim(), 
-      description: form.desc, 
-      price: Number(form.price) || 0,
-      imageUrl: form.image, 
-      categoryId: form.categoryId || null,
-      stock: Number(form.stock) || 0
+      name: form.name.trim(),
+      description: form.desc.trim(),
+      price: Number(form.price),
+      imageUrl: form.image,
+      categoryId: form.categoryId,
+      stock
     };
     try {
       if (editItem) {
@@ -96,7 +109,7 @@ export default function MenuManagement() {
       }
       setShowModal(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo guardar el producto.");
+      setFormError(e instanceof Error ? e.message : "No se pudo guardar el producto.");
     }
   }
 
@@ -186,7 +199,7 @@ export default function MenuManagement() {
             <div className="space-y-4">
               {/* Image upload */}
               <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">Imagen del producto</label>
+                <label className="block text-xs font-bold text-foreground mb-1.5">Imagen del producto *</label>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
                 {form.image ? (
                   <div className="relative rounded-2xl overflow-hidden h-36 group cursor-pointer" onClick={() => fileRef.current?.click()}>
@@ -205,46 +218,48 @@ export default function MenuManagement() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">Nombre</label>
+                <label className="block text-xs font-bold text-foreground mb-1.5">Nombre *</label>
                 <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Nombre del producto"
+                  placeholder="Nombre del producto" maxLength={80}
                   className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
               </div>
               
               <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">Categoría</label>
+                <label className="block text-xs font-bold text-foreground mb-1.5">Categoría *</label>
                 <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
                   className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium">
-                  <option value="">Sin categoría</option>
-                  {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                  <option value="">Selecciona una categoría...</option>
+                  {categories.filter((c) => c.isActive !== false || c._id === form.categoryId).map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
                 </select>
+                {categories.length === 0 && <p className="text-xs text-amber-700 font-semibold mt-1.5">Aún no tienes categorías. Créalas primero en la sección "Categorías".</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-foreground mb-1.5">Precio ($)</label>
-                  <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  <label className="block text-xs font-bold text-foreground mb-1.5">Precio ($) *</label>
+                  <input type="number" min="0.01" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
                     placeholder="0"
                     className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-foreground mb-1.5">Stock (Cantidad)</label>
-                  <input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                  <input type="number" min="0" step="1" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value.replace(/\D/g, "") })}
                     placeholder="0"
                     className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-foreground mb-1.5">Descripción</label>
+                <label className="block text-xs font-bold text-foreground mb-1.5">Descripción *</label>
                 <textarea value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })}
-                  rows={2} placeholder="Describe tu delicia..."
+                  rows={2} maxLength={500} placeholder="Describe tu delicia (mínimo 10 caracteres)..."
                   className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium resize-none" />
               </div>
+              {formError && <div className="bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{formError}</div>}
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setShowModal(false)} className="flex-1 py-3 border-2 border-border text-foreground font-bold rounded-2xl hover:bg-muted">Cancelar</button>
-                <button onClick={save} disabled={!form.name.trim()}
-                  className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow-md disabled:opacity-40">
+                <button onClick={save}
+                  className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl shadow-md">
                   {editItem ? "Guardar" : "Agregar"}
                 </button>
               </div>

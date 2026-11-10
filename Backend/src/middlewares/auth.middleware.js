@@ -30,7 +30,8 @@ exports.verifyToken = async (req, res, next) => {
       id: user._id,
       role: user.role,
       bakeryId: user.bakeryId,
-      name: user.name
+      name: user.name,
+      jobTitle: user.jobTitle
     };
     next();
   } catch (error) {
