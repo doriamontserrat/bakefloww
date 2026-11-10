@@ -9,6 +9,7 @@ import AdminStats from "./AdminStats";
 import AdminIncidents from "./AdminIncidents";
 import AdminProfile from "./AdminProfile";
 import AdminSettings from "./AdminSettings";
+import AdminCategories from "./AdminCategories";
 
 interface Props {
   userName: string;
@@ -22,6 +23,7 @@ export default function AdminApp({ userName, onLogout }: Props) {
     home: <AdminHome onNavigate={setPage} />,
     bakeries: <AdminBakeries />,
     users: <AdminUsers />,
+    categories: <AdminCategories />,
     subscriptions: <AdminSubscriptions />,
     transactions: <AdminTransactions />,
     stats: <AdminStats />,

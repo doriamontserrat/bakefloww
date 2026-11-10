@@ -13,6 +13,8 @@ const bakerySchema = new mongoose.Schema({
     plan: { type: String, enum: ['basic', 'pro', 'enterprise'], default: 'basic' },
     status: { type: String, enum: ['active', 'expired', 'cancelled'], default: 'active' },
     price: { type: Number, default: 0 },
+    // true = el usuario pidió cancelar/bajar a gratuito: conserva el plan pagado hasta expiresAt y no se renueva
+    cancelAtPeriodEnd: { type: Boolean, default: false },
     expiresAt: { type: Date, default: () => new Date(+new Date() + 30*24*60*60*1000) }
   },
   commissionRate: { type: Number, default: 0.08 } // 8% comisión de BakeFlow

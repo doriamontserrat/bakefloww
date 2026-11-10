@@ -3,6 +3,7 @@ import { api } from "../../services/api";
 import { Star, TrendingUp, DollarSign, CreditCard, Search, Filter, Store } from "lucide-react";
 
 interface Txn { id: string; bakery: string; type: string; desc: string; amount: number; date: string; }
+
 export default function AdminTransactions() {
   const [TRANSACTIONS, setTransactions] = useState<Txn[]>([]);
   const [error, setError] = useState("");
@@ -10,9 +11,38 @@ export default function AdminTransactions() {
 
   useEffect(() => {
     api<{ transactions: any[] }>("/admin/transactions")
-      .then(({ transactions }) => setTransactions(transactions.map((t) => ({
-        ...t, date: new Date(t.date).toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
-      }))))
+      .then(({ transactions }) => {
+        // 1. Ordenamos de más reciente a más antiguo (por fecha real)
+        const sorted = [...transactions].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+        const seenSubs = new Set<string>();
+
+        // 2. Filtramos para dejar solo 1 suscripción por pastelería al mes
+        const deduplicated = sorted.filter((t) => {
+          if (t.type === "subscription") {
+            const dateObj = new Date(t.date);
+            // Llave única: NombreTienda-Mes-Año (ej: Mondiu Paris-10-2026)
+            const periodKey = `${t.bakery}-${dateObj.getMonth()}-${dateObj.getFullYear()}`;
+            
+            if (seenSubs.has(periodKey)) {
+              return false; // Ya tenemos la suscripción más reciente de este mes, ignoramos esta
+            }
+            seenSubs.add(periodKey);
+            return true;
+          }
+          return true; // Las comisiones (ventas) siempre pasan
+        });
+
+        // 3. Guardamos en el estado formateando la fecha
+        setTransactions(
+          deduplicated.map((t) => ({
+            ...t,
+            date: new Date(t.date).toLocaleDateString("es-MX", { day: "numeric", month: "short" }),
+          }))
+        );
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -56,6 +86,7 @@ export default function AdminTransactions() {
 
       {error && <div className="mb-5 bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{error}</div>}
       {loading && <p className="mb-5 text-sm text-muted-foreground">Cargando transacciones...</p>}
+      
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
           { label: "Total recaudado", value: `$${total.toLocaleString()}`, Icon: DollarSign, color: "bg-pink-500" },

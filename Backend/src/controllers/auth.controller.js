@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User.model');
 const Bakery = require('../models/Bakery.model');
 const { getSettings } = require('../utils/settings');
+const { planInfoFor } = require('../utils/plans');
 
 // Generar JWT firmado
 const signToken = (user) => {
@@ -69,7 +70,8 @@ exports.register = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        bakeryId: newUser.bakeryId
+        bakeryId: newUser.bakeryId,
+        plan: await planInfoFor(newUser)
       }
     });
   } catch (error) {
@@ -109,7 +111,8 @@ exports.login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        bakeryId: user.bakeryId
+        bakeryId: user.bakeryId,
+        plan: await planInfoFor(user)
       }
     });
   } catch (error) {
@@ -121,7 +124,7 @@ exports.login = async (req, res) => {
 exports.getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    res.status(200).json({ ok: true, user });
+    res.status(200).json({ ok: true, user, plan: await planInfoFor(user) });
   } catch (error) {
     res.status(500).json({ ok: false, message: 'Error al obtener perfil' });
   }

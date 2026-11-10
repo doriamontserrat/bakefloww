@@ -8,12 +8,6 @@ import { api, uploadImage } from "../services/api";
 interface AuthPageProps {
   onLogin: (role: Role, name: string) => void;
 }
-const DEMO_ACCOUNTS = [
-  { role: "customer" as Role, email: "luna@mail.com", password: "demo123", name: "Luna García", label: "Cliente", Icon: ShoppingBag, color: "from-pink-400 to-rose-400" },
-  { role: "bakery" as Role, email: "dulceria@mail.com", password: "demo123", name: "Dulcería Rosita", label: "Pastelería", Icon: Store, color: "from-violet-400 to-pink-400" },
-  { role: "employee" as Role, email: "sofia@mail.com", password: "demo123", name: "Sofía López", label: "Empleado", Icon: User, color: "from-indigo-400 to-violet-400" },
-  { role: "admin" as Role, email: "admin@bakeflow.com", password: "demo123", name: "Admin BakeFlow", label: "Admin", Icon: Sparkles, color: "from-rose-400 to-pink-400" },
-]
 
 const FEATURES = [
   { Icon: Cake, text: "Gestiona tu menú y catálogo de pasteles" },
@@ -46,6 +40,7 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     setPhotoFile(file);
     setProfilePhoto(URL.createObjectURL(file));
   }
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -89,10 +84,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     } finally {
       setLoading(false);
     }
-  }
-
-  function fillDemo(acc: typeof DEMO_ACCOUNTS[0]) {
-    setEmail(acc.email); setPassword(acc.password); setError("");
   }
 
   function setReg(key: string, val: string) {
@@ -201,24 +192,6 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
                 className="w-full py-3.5 bg-gradient-to-r from-pink-500 to-pink-600 text-white font-bold rounded-2xl btn-glow flex items-center justify-center gap-2 text-sm disabled:opacity-60">
                 {loading ? "Entrando..." : <>Entrar <ArrowRight size={16} /></>}
               </button>
-
-              <div className="pt-4 border-t border-border">
-                <p className="text-xs text-muted-foreground font-bold text-center mb-3">Acceso rápido con cuentas demo</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {DEMO_ACCOUNTS.map((acc) => (
-                    <button key={acc.role} type="button" onClick={() => fillDemo(acc)}
-                      className="text-left px-3 py-2.5 bg-card hover:bg-muted border border-border hover:border-pink-200 rounded-2xl transition-all group card-shadow">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className={`w-6 h-6 bg-pink-500 rounded-lg flex items-center justify-center`}>
-                          <acc.Icon size={12} className="text-white" />
-                        </div>
-                        <span className="text-xs font-bold text-foreground">{acc.label}</span>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground truncate">{acc.email}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-4 animate-fade-up">
@@ -352,5 +325,3 @@ export default function AuthPage({ onLogin }: AuthPageProps) {
     </div>
   );
 }
-
-

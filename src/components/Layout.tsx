@@ -5,6 +5,7 @@ import {
   Tag, LogOut, ChevronLeft, ChevronRight, Store, Menu, X, ShoppingBag, Settings,
 } from "lucide-react";
 import Logo from "./Logo";
+import { hasFeature } from "../services/api";
 
 type Role = "customer" | "bakery" | "employee" | "admin";
 
@@ -12,6 +13,7 @@ interface NavItem {
   id: string;
   label: string;
   Icon: React.ComponentType<{ size?: number; className?: string }>;
+  feature?: string;  // función del plan que desbloquea esta sección
 }
 
 interface LayoutProps {
@@ -41,7 +43,8 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { id: "orders-mgmt", label: "Pedidos", Icon: Package },
     { id: "custom-requests", label: "Especiales", Icon: Sparkles },
     { id: "employees", label: "Empleados", Icon: Users },
-    { id: "finances", label: "Finanzas", Icon: DollarSign },
+    { id: "finances", label: "Finanzas", Icon: DollarSign, feature: "finance" },
+    { id: "reports", label: "Reportes", Icon: BarChart2, feature: "stats" },
   ],
   employee: [
     { id: "calendar", label: "Calendario", Icon: Calendar },
@@ -53,6 +56,7 @@ const NAV_ITEMS: Record<Role, NavItem[]> = {
     { id: "home", label: "Dashboard", Icon: Home },
     { id: "bakeries", label: "Pastelerías", Icon: Store },
     { id: "users", label: "Usuarios", Icon: Users },
+    { id: "categories", label: "Categorías", Icon: Tag },
     { id: "subscriptions", label: "Suscripciones", Icon: Star },
     { id: "transactions", label: "Transacciones", Icon: CreditCard },
     { id: "stats", label: "Estadísticas", Icon: BarChart2 },
@@ -79,7 +83,8 @@ const MOBILE_TABS: Record<Role, string[]> = {
 export default function Layout({ role, userName, activePage, onNavigate, onLogout, children, notifications = 0 }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = NAV_ITEMS[role];
+  // Las secciones que el plan no incluye se ocultan del menú
+  const navItems = NAV_ITEMS[role].filter((n) => !n.feature || role !== "bakery" || hasFeature(n.feature));
   const meta = ROLE_META[role];
   const mobileTabs = MOBILE_TABS[role].map((id) => navItems.find((n) => n.id === id)!).filter(Boolean);
 

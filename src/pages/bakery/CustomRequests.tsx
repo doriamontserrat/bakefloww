@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Clock, CheckCircle2, XCircle, Sparkles, AlertTriangle, DollarSign, Send } from "lucide-react";
+import ImageLightbox from "../../components/ImageLightbox";
 import { api } from "../../services/api";
 import { toCustomRequest, type CustomRequest, type CustomRequestStatus } from "../../services/customRequests";
 import { ORDERS_CHANGED } from "../../hooks/useOrderCount";
@@ -199,7 +200,7 @@ export default function CustomRequests() {
               {sel.refImage && (
                 <div>
                   <div className="text-xs text-muted-foreground font-semibold mb-1.5">Imagen de referencia</div>
-                  <img src={sel.refImage} alt="Referencia" className="w-full h-36 object-cover rounded-2xl border border-border" />
+                  <ImageLightbox src={sel.refImage} alt="Referencia" className="w-full h-36 object-cover rounded-2xl border border-border" />
                 </div>
               )}
             </div>

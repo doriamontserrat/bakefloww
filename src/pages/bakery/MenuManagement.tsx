@@ -1,14 +1,24 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, Pencil, Trash2, X, Cake, ImagePlus } from "lucide-react";
+import { Plus, Pencil, Trash2, X, Cake, ImagePlus, Package } from "lucide-react";
 import { api, getStoredUser, uploadImage } from "../../services/api";
 
-interface Item { id: string; name: string; category: string; categoryId: string | null; price: number; active: boolean; desc: string; image: string; }
+interface Item { 
+  id: string; 
+  name: string; 
+  category: string; 
+  categoryId: string | null; 
+  price: number; 
+  active: boolean; 
+  desc: string; 
+  image: string; 
+  stock: number; 
+}
 interface Category { _id: string; name: string; }
 
 function toItem(p: any): Item {
   return {
     id: p._id, name: p.name, category: p.categoryId?.name || "Sin categoría", categoryId: p.categoryId?._id || null,
-    price: p.price, active: p.isAvailable, desc: p.description || "", image: p.imageUrl || "",
+    price: p.price, active: p.isAvailable, desc: p.description || "", image: p.imageUrl || "", stock: p.stock || 0,
   };
 }
 
@@ -19,7 +29,7 @@ export default function MenuManagement() {
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<Item | null>(null);
-  const [form, setForm] = useState({ name: "", categoryId: "", price: "", desc: "", image: "" });
+  const [form, setForm] = useState({ name: "", categoryId: "", price: "", desc: "", image: "", stock: "0" });
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -35,12 +45,20 @@ export default function MenuManagement() {
 
   function openNew() {
     setEditItem(null);
-    setForm({ name: "", categoryId: "", price: "", desc: "", image: "" });
+    setForm({ name: "", categoryId: "", price: "", desc: "", image: "", stock: "0" });
     setShowModal(true);
   }
+  
   function openEdit(item: Item) {
     setEditItem(item);
-    setForm({ name: item.name, categoryId: item.categoryId || "", price: String(item.price), desc: item.desc, image: item.image });
+    setForm({ 
+      name: item.name, 
+      categoryId: item.categoryId || "", 
+      price: String(item.price), 
+      desc: item.desc, 
+      image: item.image, 
+      stock: String(item.stock) 
+    });
     setShowModal(true);
   }
 
@@ -55,12 +73,17 @@ export default function MenuManagement() {
       setError(err instanceof Error ? err.message : "No se pudo subir la imagen.");
     }
   }
+
   async function save() {
     if (!form.name.trim()) return;
     setError("");
     const body = {
-      name: form.name.trim(), description: form.desc, price: Number(form.price) || 0,
-      imageUrl: form.image, categoryId: form.categoryId || null,
+      name: form.name.trim(), 
+      description: form.desc, 
+      price: Number(form.price) || 0,
+      imageUrl: form.image, 
+      categoryId: form.categoryId || null,
+      stock: Number(form.stock) || 0
     };
     try {
       if (editItem) {
@@ -68,7 +91,7 @@ export default function MenuManagement() {
         setItems((prev) => prev.map((i) => i.id === editItem.id
           ? { ...i, ...toItem({ ...product, categoryId: categories.find((c) => c._id === form.categoryId) || null }) } : i));
       } else {
-        const { product } = await api("/products", { method: "POST", body: { ...body, stock: 0 } });
+        const { product } = await api("/products", { method: "POST", body });
         setItems((prev) => [...prev, toItem({ ...product, categoryId: categories.find((c) => c._id === form.categoryId) || null })]);
       }
       setShowModal(false);
@@ -85,12 +108,14 @@ export default function MenuManagement() {
       setItems((prev) => prev.map((i) => i.id === id ? { ...i, active: !i.active } : i));
     } catch (e) { setError(e instanceof Error ? e.message : "Error al actualizar."); }
   }
+
   async function remove(id: string) {
     try {
       await api("/products/" + id, { method: "DELETE" });
       setItems((prev) => prev.filter((i) => i.id !== id));
     } catch (e) { setError(e instanceof Error ? e.message : "Error al eliminar."); }
   }
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -106,6 +131,7 @@ export default function MenuManagement() {
 
       {error && <div className="mb-4 bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{error}</div>}
       {loading && <p className="text-sm text-muted-foreground">Cargando menú...</p>}
+      
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((item) => (
           <div key={item.id} className={`bg-card rounded-3xl card-shadow border transition-all flex flex-col ${item.active ? "border-border" : "border-dashed border-border opacity-60"}`}>
@@ -123,7 +149,15 @@ export default function MenuManagement() {
               </div>
               <div className="text-xs text-muted-foreground mb-1">{item.category}</div>
               <div className="text-xs text-muted-foreground mb-3 leading-relaxed line-clamp-2">{item.desc}</div>
-              <div className="font-display text-lg font-semibold text-pink-500 mb-3 mt-auto">${item.price}</div>
+              
+              <div className="flex items-center justify-between mb-3 mt-auto">
+                <div className="font-display text-lg font-semibold text-pink-500">${item.price}</div>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground bg-muted px-2 py-1.5 rounded-xl border border-border">
+                  <Package size={14} className="text-pink-400" />
+                  <span>Stock: {item.stock}</span>
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <button onClick={() => openEdit(item)} className="flex-1 flex items-center justify-center gap-1 py-2 bg-pink-50 text-pink-500 text-xs font-bold rounded-xl hover:bg-pink-100 transition-colors">
                   <Pencil size={12} /> Editar
@@ -176,22 +210,31 @@ export default function MenuManagement() {
                   placeholder="Nombre del producto"
                   className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
               </div>
+              
+              <div>
+                <label className="block text-xs font-bold text-foreground mb-1.5">Categoría</label>
+                <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium">
+                  <option value="">Sin categoría</option>
+                  {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-foreground mb-1.5">Categoría</label>
-                  <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium">
-                    <option value="">Sin categoría</option>
-                    {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                  </select>
-                </div>
                 <div>
                   <label className="block text-xs font-bold text-foreground mb-1.5">Precio ($)</label>
                   <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })}
                     placeholder="0"
                     className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold text-foreground mb-1.5">Stock (Cantidad)</label>
+                  <input type="number" min="0" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                    placeholder="0"
+                    className="w-full px-4 py-2.5 rounded-2xl border-2 border-border bg-muted focus:outline-none focus:border-pink-400 text-sm font-medium" />
+                </div>
               </div>
+
               <div>
                 <label className="block text-xs font-bold text-foreground mb-1.5">Descripción</label>
                 <textarea value={form.desc} onChange={(e) => setForm({ ...form, desc: e.target.value })}

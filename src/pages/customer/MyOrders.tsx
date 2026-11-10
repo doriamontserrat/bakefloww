@@ -3,7 +3,7 @@ import { Clock, ChefHat, CheckCircle2, PartyPopper, XCircle, Cake } from "lucide
 import { api } from "../../services/api";
 
 interface Step { label: string; done: boolean; time: string; }
-interface OrderView { id: string; name: string; status: string; date: string; delivery: string; total: string; steps: Step[]; }
+interface OrderView { id: string; dbId: string; rawStatus: string; name: string; status: string; date: string; delivery: string; total: string; steps: Step[]; }
 
 const FLOW = [
   { label: "Pedido recibido", statuses: ["pending_quote", "pending", "in_preparation", "ready", "delivered"] },
@@ -23,6 +23,7 @@ function toView(o: any): OrderView {
     : (o.items || []).map((i: any) => i.quantity > 1 ? `${i.name} x${i.quantity}` : i.name).join(", ") || "Pedido";
   return {
     id: "#" + String(o._id).slice(-6).toUpperCase(),
+    dbId: o._id, rawStatus: o.status,
     name, status,
     date: fmtDate(o.createdAt),
     delivery: fmtDate(o.deliveryDate),
@@ -40,11 +41,18 @@ const STATUS_MAP: Record<string, { label: string; class: string; Icon: React.Com
   cancelled: { label: "Cancelado", class: "badge-cancelled", Icon: XCircle },
 };
 
+// Solo se puede cancelar antes de que la pastelería empiece a prepararlo
+const CANCELLABLE = ["pending_quote", "awaiting_client", "pending"];
+const FILTERS = ["all", "pending", "progress", "ready", "delivered", "cancelled"] as const;
+
 export default function MyOrders() {
   const [orders, setOrders] = useState<OrderView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
+  const [cancelling, setCancelling] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
 
   useEffect(() => {
     api<{ orders: any[] }>("/orders")
@@ -58,6 +66,22 @@ export default function MyOrders() {
   }, []);
 
   const selectedOrder = orders.find((o) => o.id === selected);
+  const visible = orders.filter((o) => filter === "all" || o.status === filter);
+
+  async function cancelOrder(order: OrderView) {
+    setCancelling(true);
+    setError("");
+    try {
+      await api(`/orders/${order.dbId}/cancel`, { method: "PATCH" });
+      setOrders((prev) => prev.map((o) => o.id === order.id
+        ? { ...o, status: "cancelled", rawStatus: "cancelled", steps: [{ label: "Cancelado", done: true, time: "" }] } : o));
+      setConfirmCancel(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo cancelar el pedido.");
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -71,10 +95,21 @@ export default function MyOrders() {
           {error && <div className="bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{error}</div>}
           {loading && <p className="text-sm text-muted-foreground">Cargando pedidos...</p>}
           {!loading && !error && orders.length === 0 && <p className="text-sm text-muted-foreground">Aún no tienes pedidos.</p>}
-          {orders.map((order) => {
+          <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filtrar por estado">
+            {FILTERS.map((f) => (
+              <button key={f} onClick={() => setFilter(f)} role="tab" aria-selected={filter === f}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  filter === f ? "border-pink-400 bg-pink-50 text-pink-600" : "border-border text-muted-foreground hover:border-pink-200"
+                }`}>
+                {f === "all" ? "Todos" : STATUS_MAP[f].label}
+              </button>
+            ))}
+          </div>
+          {!loading && orders.length > 0 && visible.length === 0 && <p className="text-sm text-muted-foreground">No tienes pedidos con este estado.</p>}
+          {visible.map((order) => {
             const s = STATUS_MAP[order.status];
             return (
-              <button key={order.id} onClick={() => setSelected(order.id)}
+              <button key={order.id} onClick={() => { setSelected(order.id); setConfirmCancel(false); }}
                 className={`w-full text-left p-4 rounded-3xl border-2 transition-all card-shadow ${selected === order.id ? "border-pink-400 bg-pink-50" : "border-border bg-card hover:border-pink-200"}`}>
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-br from-pink-100 to-purple-100 rounded-2xl flex items-center justify-center shrink-0">
@@ -135,6 +170,31 @@ export default function MyOrders() {
                 </div>
               ))}
             </div>
+
+            {CANCELLABLE.includes(selectedOrder.rawStatus) && (
+              <div className="mt-2 mb-4">
+                {!confirmCancel ? (
+                  <button onClick={() => setConfirmCancel(true)}
+                    className="w-full py-2.5 bg-white border-2 border-pink-400 text-pink-500 font-bold rounded-2xl text-sm flex items-center justify-center gap-2 hover:bg-pink-50 transition-all">
+                    <XCircle size={14} /> Cancelar pedido
+                  </button>
+                ) : (
+                  <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4">
+                    <p className="text-sm font-semibold text-pink-700 mb-3">¿Seguro que quieres cancelar este pedido? Esta acción no se puede deshacer.</p>
+                    <div className="flex gap-2.5">
+                      <button onClick={() => cancelOrder(selectedOrder)} disabled={cancelling}
+                        className="flex-1 py-2.5 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl text-sm disabled:opacity-60">
+                        {cancelling ? "Cancelando..." : "Sí, cancelar"}
+                      </button>
+                      <button onClick={() => setConfirmCancel(false)} disabled={cancelling}
+                        className="flex-1 py-2.5 bg-white border-2 border-border text-muted-foreground font-bold rounded-2xl text-sm">
+                        Volver
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="mt-4 pt-4 border-t border-border grid grid-cols-2 gap-4">
               <div className="bg-muted rounded-2xl p-3">

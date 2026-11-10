@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Cake, Palette, FileText, CheckCircle2, ImagePlus, X, Clock, Send, XCircle, DollarSign, Sparkles, CreditCard, Lock, ChevronRight, Check } from "lucide-react";
+import ImageLightbox from "../../components/ImageLightbox";
 import { api, uploadImage } from "../../services/api";
 import { toCustomRequest, type CustomRequest, type CustomRequestStatus } from "../../services/customRequests";
 import { ORDERS_CHANGED } from "../../hooks/useOrderCount";
@@ -426,7 +427,7 @@ export default function CustomOrder() { // <-- Ya no recibe props
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleRefImage} />
                   {form.refImage ? (
                     <div className="relative rounded-2xl overflow-hidden border-2 border-pink-200">
-                      <img src={form.refImage} alt="Referencia" className="w-full h-36 object-cover" />
+                      <ImageLightbox src={form.refImage} alt="Referencia" className="w-full h-36 object-cover" />
                       <button onClick={() => setForm({ ...form, refImage: "" })}
                         className="absolute top-2 right-2 w-8 h-8 bg-black/50 text-white rounded-xl flex items-center justify-center hover:bg-black/70 transition-colors">
                         <X size={14} />
@@ -478,7 +479,7 @@ export default function CustomOrder() { // <-- Ya no recibe props
                 {form.refImage && (
                   <div>
                     <div className="text-sm font-bold text-muted-foreground mb-1.5">Imagen de referencia</div>
-                    <img src={form.refImage} alt="Referencia" className="w-full h-32 object-cover rounded-2xl border border-border" />
+                    <ImageLightbox src={form.refImage} alt="Referencia" className="w-full h-32 object-cover rounded-2xl border border-border" />
                   </div>
                 )}
                 {!form.date && <div className="text-xs font-semibold text-amber-700">Indica la fecha de entrega en el paso anterior.</div>}

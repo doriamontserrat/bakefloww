@@ -1,5 +1,9 @@
 const User = require('../models/User.model');
 const Bakery = require('../models/Bakery.model');
+const Order = require('../models/Order.model');
+const Notification = require('../models/Notification.model');
+const Incident = require('../models/Incident.model');
+const { ACTIVE_STATUSES, deleteBakeryCascade } = require('../utils/cascade');
 const { pick, publicUser, canAccessBakery, notFound, forbidden } = require('../utils/access');
 
 // Admin: todos (filtro ?role=). Pastelería: solo los empleados de su pastelería.
@@ -231,6 +235,22 @@ exports.deleteUser = async (req, res) => {
         user.role === 'employee' && req.user.bakeryId && String(user.bakeryId) === String(req.user.bakeryId);
       if (!isMyEmployee) return forbidden(res);
     }
+
+    // Limpieza de lo que depende del usuario para no dejar registros huérfanos
+    if (user.role === 'customer') {
+      const active = await Order.countDocuments({ customerId: user._id, status: { $in: ACTIVE_STATUSES } });
+      if (active) {
+        return res.status(409).json({ ok: false, message: `El cliente tiene ${active} pedido(s) en curso. Cancélalos o espera a que terminen antes de eliminarlo.` });
+      }
+      await Order.updateMany({ customerId: user._id }, { customerId: null }); // el historial de la pastelería se conserva
+    } else if (user.role === 'employee') {
+      await Order.updateMany({ assignedEmployeeId: user._id }, { assignedEmployeeId: null });
+    } else if (user.role === 'bakery') {
+      const bakery = await Bakery.findOne({ $or: [{ ownerId: user._id }, { _id: user.bakeryId }] });
+      if (bakery) await deleteBakeryCascade(bakery);
+    }
+    await Notification.deleteMany({ userId: user._id });
+    await Incident.deleteMany({ reportedBy: user._id });
     await user.deleteOne();
     res.json({ ok: true, message: 'Usuario eliminado correctamente' });
   } catch (error) {

@@ -10,6 +10,7 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
   const [bakeryId, setBakeryId] = useState("");
   const [loadError, setLoadError] = useState("");
   const [plan, setPlan] = useState({ name: "Gratuito", features: "", price: 0 });
+  const [accessEnds, setAccessEnds] = useState<string | null>(null); // fecha en que se pierde el plan de pago (si ya se canceló)
   const [stats, setStats] = useState({ orders: 0, employees: 0, income: 0 });
 
   useEffect(() => {
@@ -22,7 +23,7 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
       api<{ plans: any[] }>("/plans"),
       api<{ orders: any[] }>("/orders"),
       api<{ users: any[] }>("/users"),
-      api<{ records: any[] }>("/finances"),
+      api<{ records: any[] }>("/finances").catch(() => ({ records: [] as any[] })), // plan gratuito: sin finanzas
     ])
       .then(([{ user }, { bakery }, { plans }, { orders }, { users }, { records }]) => {
         setForm({
@@ -32,6 +33,7 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
         setPhoto(bakery.logoUrl || "");
         const active = bakery.subscription?.status === "active";
         const current = plans.find((p) => p.key === (active ? bakery.subscription.plan : "basic"));
+        setAccessEnds(active && bakery.subscription.cancelAtPeriodEnd && bakery.subscription.expiresAt ? bakery.subscription.expiresAt : null);
         setPlan({ name: current ? `Plan ${current.name}` : "Plan Gratuito", features: (current?.features || []).join(" · "), price: current?.price || 0 });
         const now = new Date();
         const thisMonth = (iso: string) => { const d = new Date(iso); return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth(); };
@@ -130,6 +132,11 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
             <div className="font-bold text-foreground">{plan.name}</div>
             <div className="text-xs text-muted-foreground">{plan.features}</div>
             <div className="text-xs font-bold text-pink-500 mt-0.5">{plan.price > 0 ? `$${plan.price} / mes` : "Sin costo"}</div>
+            {accessEnds && (
+              <div className="text-xs font-bold text-amber-600 mt-1">
+                Plan cancelado: pierdes el acceso el {new Date(accessEnds).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+              </div>
+            )}
           </div>
           <button onClick={() => onNavigate("subscription")}
             className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white font-bold text-xs rounded-xl transition-colors shrink-0">

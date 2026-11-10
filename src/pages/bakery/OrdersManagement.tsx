@@ -55,6 +55,7 @@ export default function OrdersManagement() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
 
   useEffect(() => {
     Promise.all([
@@ -75,6 +76,13 @@ export default function OrdersManagement() {
   const [showPayment, setShowPayment] = useState<string | null>(null);
   const [payStep, setPayStep] = useState<"form" | "done">("form");
   const [cardForm, setCardForm] = useState({ number: "", name: "", expiry: "", cvv: "" });
+
+  // "Aceptado" y "En proceso" comparten estado en la base de datos, así que el filtro los agrupa en "En proceso"
+  const FILTERS: ("all" | OrderStatus)[] = ["all", "pending", "progress", "ready", "delivered", "cancelled"];
+  const countOf = (f: "all" | OrderStatus) =>
+    orders.filter(o => f === "all" || o.status === f || (f === "progress" && o.status === "accepted")).length;
+  const visibleOrders = orders.filter(o =>
+    statusFilter === "all" || o.status === statusFilter || (statusFilter === "progress" && o.status === "accepted"));
 
   const selectedOrder = orders.find(o => o.id === selected);
   const payOrder = showPayment ? orders.find(o => o.id === showPayment) : null;
@@ -128,7 +136,20 @@ export default function OrdersManagement() {
         {loading && <p className="lg:col-span-5 text-sm text-muted-foreground">Cargando pedidos...</p>}
         {/* List */}
         <div className="lg:col-span-2 space-y-2">
-          {orders.map(o => {
+          <div className="flex flex-wrap gap-1.5 pb-1" role="tablist" aria-label="Filtrar por estado">
+            {FILTERS.map(f => (
+              <button key={f} onClick={() => setStatusFilter(f)} role="tab" aria-selected={statusFilter === f}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  statusFilter === f ? "border-pink-400 bg-pink-50 text-pink-600" : "border-border text-muted-foreground hover:border-pink-200"
+                }`}>
+                {f === "all" ? "Todos" : STATUS_MAP[f].label} ({countOf(f)})
+              </button>
+            ))}
+          </div>
+          {!loading && visibleOrders.length === 0 && (
+            <p className="text-sm text-muted-foreground py-4 text-center">No hay pedidos con este estado.</p>
+          )}
+          {visibleOrders.map(o => {
             const s = STATUS_MAP[o.status];
             return (
               <button key={o.id} onClick={() => setSelected(o.id)}

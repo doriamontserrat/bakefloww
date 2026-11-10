@@ -2,7 +2,8 @@ const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema({
   // Las ventas de mostrador pueden no tener cliente registrado
-  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, required: function () { return !this.isPointOfSale; } },
+  // null en ventas de mostrador o si el cliente borró su cuenta (el pedido queda como historial)
+  customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   bakeryId: { type: mongoose.Schema.Types.ObjectId, ref: 'Bakery', required: true },
   assignedEmployeeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   orderType: { type: String, enum: ['standard', 'custom'], default: 'standard' },
@@ -40,6 +41,7 @@ const orderSchema = new mongoose.Schema({
   deliveryDate: { type: Date, required: [true, 'La fecha de entrega es obligatoria'] },
   totalPrice: { type: Number, required: true, default: 0 },
   platformCommission: { type: Number, default: 0 },
+  stockDeducted: { type: Boolean, default: false }, // ¿ya se descontó el stock de este pedido?
   isPointOfSale: { type: Boolean, default: false }, // ¿Fue venta en el local?
   paymentMethod: { type: String, enum: ['cash', 'card', 'transfer', 'pending'], default: 'pending' },
   deliveryAddress: { type: String, default: '' },

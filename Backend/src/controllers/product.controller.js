@@ -40,11 +40,15 @@ exports.updateProduct = async (req, res) => {
     if (!product) return notFound(res, 'Producto no encontrado');
     if (!canAccessBakery(req.user, product.bakeryId)) return forbidden(res);
 
-    product.set(pick(req.body, PRODUCT_FIELDS));
+    const data = pick(req.body, PRODUCT_FIELDS);
+    const wasOutOfStock = product.stock <= 0;
+    product.set(data);
+    // Al reponer un producto agotado vuelve a estar disponible (salvo que se indique lo contrario)
+    if (wasOutOfStock && product.stock > 0 && data.isAvailable === undefined) product.isAvailable = true;
     await product.save();
     res.json({ ok: true, message: 'Pastel actualizado', product });
   } catch (error) {
-    res.status(400).json({ ok: false, message: 'Error al actualizar producto' });
+    res.status(400).json({ ok: false, message: 'Error al actualizar producto', error: error.message });
   }
 };
 

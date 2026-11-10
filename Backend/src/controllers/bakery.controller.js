@@ -4,6 +4,8 @@ const Order = require('../models/Order.model');
 const Product = require('../models/Product.model');
 const Plan = require('../models/Plan.model');
 const Payment = require('../models/Payment.model');
+const { deleteBakeryCascade } = require('../utils/cascade');
+const { resolvePlanKey } = require('../utils/plans');
 const { pick, canAccessBakery, forbidden, notFound } = require('../utils/access');
 
 // Campos que puede editar la propia pastelería
@@ -41,6 +43,7 @@ exports.getBakeryById = async (req, res) => {
     if (bakery.status !== 'active' && !(req.user && canAccessBakery(req.user, bakery._id))) {
       return notFound(res, 'Pastelería no encontrada');
     }
+    await resolvePlanKey(bakery); // deja guardada la suscripción como vencida si ya pasó su fecha
     res.json({ ok: true, bakery });
   } catch (error) {
     res.status(400).json({ ok: false, message: 'Error al obtener pastelería' });
@@ -90,18 +93,30 @@ exports.updateSubscription = async (req, res) => {
     if (!bakery) return notFound(res, 'Pastelería no encontrada');
     if (!canAccessBakery(req.user, bakery._id)) return forbidden(res);
 
-    if (req.body.action === 'cancel') {
-      bakery.subscription = { plan: 'basic', status: 'cancelled', price: 0, expiresAt: null };
-      await bakery.save();
-      return res.json({ ok: true, message: 'Suscripción cancelada', bakery });
+    // Bajar a gratuito / cancelar: si el periodo ya está pagado, conserva el plan hasta que termine.
+    const paidUntil = await resolvePlanKey(bakery) !== 'basic' ? bakery.subscription.expiresAt : null;
+
+    const toFree = req.body.action === 'cancel';
+    let plan = null;
+    if (!toFree) {
+      plan = await Plan.findOne({ key: req.body.plan, isActive: true });
+      if (!plan) return res.status(400).json({ ok: false, message: 'Plan no válido.' });
     }
 
-    const plan = await Plan.findOne({ key: req.body.plan, isActive: true });
-    if (!plan) return res.status(400).json({ ok: false, message: 'Plan no válido.' });
+    if (toFree || plan.price === 0) {
+      if (paidUntil) {
+        bakery.subscription.cancelAtPeriodEnd = true;
+        await bakery.save();
+        return res.json({ ok: true, message: 'Cancelación programada', accessUntil: paidUntil, bakery });
+      }
+      bakery.subscription = { plan: 'basic', status: toFree ? 'cancelled' : 'active', price: 0, cancelAtPeriodEnd: false, expiresAt: null };
+      await bakery.save();
+      return res.json({ ok: true, message: toFree ? 'Suscripción cancelada' : 'Suscripción actualizada', accessUntil: null, bakery });
+    }
 
     bakery.subscription = {
-      plan: plan.key, status: 'active', price: plan.price,
-      expiresAt: plan.price > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : null
+      plan: plan.key, status: 'active', price: plan.price, cancelAtPeriodEnd: false,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     };
     await bakery.save();
     if (plan.price > 0) {
@@ -117,11 +132,9 @@ exports.updateSubscription = async (req, res) => {
 // Eliminar pastelería (Admin): también borra su menú y sus empleados, y libera al dueño
 exports.deleteBakery = async (req, res) => {
   try {
-    const bakery = await Bakery.findByIdAndDelete(req.params.id);
+    const bakery = await Bakery.findById(req.params.id);
     if (!bakery) return notFound(res, 'Pastelería no encontrada');
-    await Product.deleteMany({ bakeryId: bakery._id });
-    await User.deleteMany({ bakeryId: bakery._id, role: 'employee' });
-    await User.updateMany({ bakeryId: bakery._id }, { bakeryId: null });
+    await deleteBakeryCascade(bakery);
     res.json({ ok: true, message: 'Pastelería eliminada' });
   } catch (error) {
     res.status(500).json({ ok: false, message: 'Error al eliminar pastelería' });

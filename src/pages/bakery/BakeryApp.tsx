@@ -12,6 +12,8 @@ import BakeryIncidents from "./BakeryIncidents";
 import BakeryProfile from "./BakeryProfile";
 import BakeryCategories from "../admin/AdminCategories";
 import BakeryPOS from "./BakeryPOS";
+import Reports from "./Reports";
+import { hasFeature } from "../../services/api";
 import { useOrderCount } from "../../hooks/useOrderCount";
 
 interface Props {
@@ -31,7 +33,9 @@ export default function BakeryApp({ userName, onLogout }: Props) {
     "orders-mgmt": <OrdersManagement />,
     "custom-requests": <CustomRequests />,
     employees: <EmployeeManagement />,
-    finances: <Finances />,
+    // Finanzas y Reportes no están en el menú si el plan no los incluye; si se llega por otro lado, se vuelve al inicio
+    ...(hasFeature("finance") ? { finances: <Finances /> } : {}),
+    ...(hasFeature("stats") ? { reports: <Reports onNavigate={setPage} /> } : {}),
     subscription: <SubscriptionPage />,
     incidents: <BakeryIncidents />,
     categories: <BakeryCategories />,

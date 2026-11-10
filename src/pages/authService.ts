@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   role: Role;
   bakeryId: string | null;
+  plan?: { key: string; name: string; features: string[]; expiresAt: string | null } | null;
 }
 
 export interface AuthResponse {

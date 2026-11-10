@@ -7,6 +7,9 @@ const Bakery = require('../models/Bakery.model');
 const { pick, canAccessBakery, forbidden, notFound } = require('../utils/access');
 const { getSettings, getCommissionRate } = require('../utils/settings');
 const Plan = require('../models/Plan.model');
+const { deductStock, restoreStock } = require('../utils/stock');
+const { removeOrderRefs } = require('../utils/cascade');
+const { resolvePlanKey } =require('../utils/plans');
 
 const STATUSES = Order.schema.path('status').enumValues;
 const PAYMENT_METHODS = ['cash', 'card', 'transfer', 'pending'];
@@ -15,6 +18,8 @@ const CUSTOM_DETAIL_FIELDS = [
   'frosting', 'decorations', 'theme', 'message', 'persons', 'budget'
 ];
 // Estados del ciclo de cotización de un pedido personalizado: solo se mueven con quote/reject/respond
+// Estados que cierran el pedido sin venderlo: liberan el stock y ya no se pueden reabrir
+const RELEASE_STATUSES = ['cancelled', 'rejected', 'declined'];
 const QUOTE_FLOW = ['pending_quote', 'awaiting_client', 'rejected', 'declined'];
 
 // La tasa de comisión la define el admin en la configuración de la plataforma
@@ -99,8 +104,8 @@ exports.createOrder = async (req, res) => {
     }
 
     // Límite mensual de pedidos del plan (el gratuito lo define la configuración de la plataforma)
-    const subActive = targetBakery.subscription?.status === 'active';
-    const planKey = subActive ? targetBakery.subscription.plan : 'basic';
+    // (una suscripción vencida o cancelada cuenta como plan gratuito)
+    const planKey = await resolvePlanKey(targetBakery);
     const plan = await Plan.findOne({ key: planKey });
     const limit = planKey === 'basic' ? (await getSettings()).maxFreeOrders : plan?.maxOrdersPerMonth;
     if (limit !== null && limit !== undefined) {
@@ -138,7 +143,6 @@ exports.createOrder = async (req, res) => {
     // 3. Items y total: se toman SIEMPRE de la base de datos, no del cliente
     let orderItems = [];
     let totalPrice = 0;
-    const products = [];
     if (type === 'standard') {
       if (!Array.isArray(items) || items.length === 0) {
         return res.status(400).json({ ok: false, message: 'El pedido debe incluir al menos un producto.' });
@@ -149,10 +153,10 @@ exports.createOrder = async (req, res) => {
         if (!product || String(product.bakeryId) !== String(finalBakeryId) || !product.isAvailable) {
           return res.status(400).json({ ok: false, message: `El producto "${item.name || item.productId}" no está disponible en esta pastelería.` });
         }
-        if (isPointOfSale && product.stock < quantity) {
+        if (product.stock < quantity) {
           return res.status(400).json({
             ok: false,
-            message: `No hay suficiente stock para el pastel: ${product.name}. Stock actual: ${product.stock}`
+            message: `No hay suficiente stock de "${product.name}". Disponible: ${product.stock}`
           });
         }
         // Talla: si el producto tiene tallas, el cliente debe elegir una válida
@@ -160,7 +164,6 @@ exports.createOrder = async (req, res) => {
         if (!isPointOfSale && product.sizes?.length && !product.sizes.includes(size)) {
           return res.status(400).json({ ok: false, message: `Elige una talla válida para "${product.name}".` });
         }
-        products.push({ product, quantity });
         orderItems.push({ productId: product._id, name: product.name, quantity, price: product.price, size });
         totalPrice += product.price * quantity;
       }
@@ -184,23 +187,38 @@ exports.createOrder = async (req, res) => {
 
     const platformCommission = await commissionOf(totalPrice);
 
-    const order = await Order.create({
-      customerId: finalCustomerId,
-      bakeryId: finalBakeryId,
-      assignedEmployeeId: req.user.role === 'employee' ? req.user.id : null,
-      orderType: type,
-      items: orderItems,
-      customDetails: details,
-      status,
-      deliveryDate,
-      isPointOfSale,
-      paymentMethod,
-      cardLast4,
-      deliveryAddress,
-      deliveryMethod: deliveryMethod === 'delivery' ? 'delivery' : 'pickup',
-      totalPrice,
-      platformCommission
-    });
+    // Descuento atómico de stock (mostrador y pedidos en línea); si no alcanza, no se crea nada
+    if (type === 'standard') {
+      const result = await deductStock(orderItems.map((i) => ({ productId: i.productId, quantity: i.quantity, name: i.name })));
+      if (!result.ok) {
+        return res.status(400).json({ ok: false, message: `No hay suficiente stock de "${result.name}". Disponible: ${result.stock}` });
+      }
+    }
+
+    let order;
+    try {
+      order = await Order.create({
+        customerId: finalCustomerId,
+        bakeryId: finalBakeryId,
+        assignedEmployeeId: req.user.role === 'employee' ? req.user.id : null,
+        orderType: type,
+        items: orderItems,
+        customDetails: details,
+        status,
+        deliveryDate,
+        isPointOfSale,
+        paymentMethod,
+        cardLast4,
+        deliveryAddress,
+        deliveryMethod: deliveryMethod === 'delivery' ? 'delivery' : 'pickup',
+        totalPrice,
+        platformCommission,
+        stockDeducted: type === 'standard'
+      });
+    } catch (err) {
+      if (type === 'standard') await restoreStock(orderItems);
+      throw err;
+    }
 
     if (type === 'custom' && !isStaff) {
       const bakery = await Bakery.findById(finalBakeryId);
@@ -210,15 +228,6 @@ exports.createOrder = async (req, res) => {
           title: 'Nueva solicitud personalizada',
           message: `${req.user.name} envió una solicitud de pastel personalizado para el ${new Date(deliveryDate).toLocaleDateString()}.`
         });
-      }
-    }
-
-    // 5. Descontar stock solo tras crear el pedido (venta de mostrador)
-    if (isPointOfSale) {
-      for (const { product, quantity } of products) {
-        product.stock -= quantity;
-        if (product.stock <= 0) product.isAvailable = false;
-        await product.save();
       }
     }
 
@@ -252,6 +261,9 @@ exports.updateOrder = async (req, res) => {
     const canPrice = req.user.role !== 'employee';
     const previousStatus = order.status;
 
+    if (status !== undefined && RELEASE_STATUSES.includes(previousStatus) && status !== previousStatus) {
+      return res.status(400).json({ ok: false, message: 'Un pedido cancelado o rechazado no se puede reabrir; crea uno nuevo.' });
+    }
     if (status !== undefined && QUOTE_FLOW.includes(previousStatus) && status !== previousStatus && status !== 'cancelled') {
       return res.status(400).json({ ok: false, message: 'Este pedido está en proceso de cotización: usa las acciones de cotizar, aceptar o rechazar.' });
     }
@@ -289,7 +301,11 @@ exports.updateOrder = async (req, res) => {
       order.platformCommission = await commissionOf(price);
     }
 
+    // Si el pedido se cierra sin venderse, el stock reservado vuelve al inventario
+    const releasesStock = order.stockDeducted && status !== undefined && status !== previousStatus && RELEASE_STATUSES.includes(status);
+    if (releasesStock) order.stockDeducted = false;
     await order.save();
+    if (releasesStock) await restoreStock(order.items);
 
     if (newlyAssigned) {
       await Notification.create({
@@ -321,8 +337,11 @@ exports.updateOrder = async (req, res) => {
         });
       }
 
-      // Al entregarse, registrar el ingreso una sola vez por pedido
-      if (status === 'delivered' && order.totalPrice > 0 && !(await Finance.exists({ orderId: order._id, type: 'income' }))) {
+      // Si el pedido se cierra sin venderse, su ingreso (si ya se había registrado) se retira de las finanzas
+      if (RELEASE_STATUSES.includes(status)) await Finance.deleteMany({ orderId: order._id, type: 'income' });
+
+      // Al quedar listo (o entregarse) cuenta como ganancia: se registra una sola vez por pedido
+      if (['ready', 'delivered'].includes(status) && order.totalPrice > 0 && !(await Finance.exists({ orderId: order._id, type: 'income' }))) {
         await Finance.create({
           bakeryId: order.bakeryId,
           orderId: order._id,
@@ -347,6 +366,9 @@ exports.deleteOrder = async (req, res) => {
     if (!order) return notFound(res, 'Pedido no encontrado');
     if (!canAccessBakery(req.user, order.bakeryId)) return forbidden(res);
 
+    // Un pedido con stock reservado lo devuelve al inventario; los entregados ya se vendieron
+    if (order.stockDeducted && order.status !== 'delivered') await restoreStock(order.items);
+    await removeOrderRefs([order._id]);
     await order.deleteOne();
     res.json({ ok: true, message: 'Pedido eliminado' });
   } catch (error) {
@@ -406,6 +428,36 @@ exports.rejectOrder = async (req, res) => {
     res.json({ ok: true, message: 'Solicitud rechazada', order });
   } catch (error) {
     res.status(400).json({ ok: false, message: 'Error al rechazar la solicitud' });
+  }
+};
+
+// Cliente: cancela SU pedido mientras la pastelería aún no empieza a prepararlo
+const CUSTOMER_CANCELLABLE = ['pending_quote', 'awaiting_client', 'pending'];
+exports.cancelOwnOrder = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order || String(order.customerId) !== String(req.user.id)) return notFound(res, 'Pedido no encontrado');
+    if (!CUSTOMER_CANCELLABLE.includes(order.status)) {
+      return res.status(400).json({
+        ok: false,
+        message: RELEASE_STATUSES.includes(order.status)
+          ? 'Este pedido ya está cancelado.'
+          : 'La pastelería ya empezó a preparar tu pedido; contáctala para cancelarlo.'
+      });
+    }
+    const releasesStock = order.stockDeducted;
+    order.status = 'cancelled';
+    order.stockDeducted = false;
+    await order.save();
+    if (releasesStock) await restoreStock(order.items);
+
+    const bakery = await Bakery.findById(order.bakeryId);
+    if (bakery) {
+      await notify(bakery.ownerId, order, 'Pedido cancelado por el cliente', `${req.user.name} canceló el pedido #${String(order._id).slice(-6).toUpperCase()}.`);
+    }
+    res.json({ ok: true, message: 'Pedido cancelado', order });
+  } catch (error) {
+    res.status(400).json({ ok: false, message: 'Error al cancelar el pedido' });
   }
 };
 

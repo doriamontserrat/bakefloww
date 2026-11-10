@@ -8,10 +8,11 @@ const PLAN_LABEL: Record<string, string> = { basic: "Gratuito", pro: "Pro", ente
 
 function toRow(b: any): SubRow {
   const s = b.subscription || {};
-  const price = s.price || 0;
+  const free = !s.plan || s.plan === "basic"; // el plan gratuito no cobra ni vence
+  const price = free ? 0 : s.price || 0;
   return {
     bakery: b.name, plan: PLAN_LABEL[s.plan] || "Gratuito", status: s.status || "active", price,
-    end: s.expiresAt ? new Date(s.expiresAt).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "-",
+    end: !free && s.expiresAt ? new Date(s.expiresAt).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" }) : "-",
     amount: `$${price}`,
   };
 }

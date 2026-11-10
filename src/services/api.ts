@@ -70,3 +70,32 @@ export async function uploadImage(file: File): Promise<string> {
   if (!response.ok || data.ok === false) throw new Error(data.message || "No se pudo subir la imagen.");
   return data.url as string;
 }
+
+// ---- Plan de la pastelería (viene del servidor al iniciar sesión) ----------------------------
+
+export interface PlanInfo { key: string; name: string; features: string[]; expiresAt: string | null; cancelAtPeriodEnd?: boolean; }
+
+export function getPlan(): PlanInfo | null {
+  try {
+    return (JSON.parse(localStorage.getItem("bakeflow_user") || "null")?.plan as PlanInfo | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** ¿El plan de la sesión incluye esta función? (el servidor la valida de nuevo en cada petición) */
+export const hasFeature = (feature: string): boolean => !!getPlan()?.features.includes(feature);
+
+/** Guarda el plan actualizado que devuelve /auth/me en la sesión guardada. */
+export function saveStoredPlan(plan: PlanInfo | null) {
+  try {
+    const user = JSON.parse(localStorage.getItem("bakeflow_user") || "null");
+    if (user) localStorage.setItem("bakeflow_user", JSON.stringify({ ...user, plan }));
+  } catch { /* sin sesión guardada */ }
+}
+
+/** Cierra la sesión y vuelve al login (lo escucha App.tsx). Se usa tras cambiar de plan. */
+export function forceRelogin() {
+  clearSession();
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+}

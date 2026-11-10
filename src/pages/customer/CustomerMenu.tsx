@@ -293,11 +293,14 @@ export default function CustomerMenu({ cart, setCart, showCart, setShowCart }: P
                               <div className="text-xs text-muted-foreground">x{c.qty}{c.size ? ` (${c.size})` : ""} · ${item.price * c.qty}</div>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button onClick={() => setCart((prev) => prev.map((ci) => lineKey(ci) === lineKey(c) ? { ...ci, qty: Math.max(1, ci.qty - 1) } : ci))}
+                              <button onClick={() => setCart((prev) => prev.map((ci) => lineKey(ci) === lineKey(c) ? { ...ci, qty: Math.max(1, ci.qty - 1) } : ci))} aria-label="Menos"
                                 className="w-6 h-6 rounded-lg bg-border flex items-center justify-center text-xs font-bold text-muted-foreground hover:bg-pink-100">−</button>
                               <span className="w-5 text-center text-xs font-bold">{c.qty}</span>
                               <button onClick={() => setCart((prev) => prev.map((ci) => lineKey(ci) === lineKey(c) ? { ...ci, qty: ci.qty + 1 } : ci))}
                                 className="w-6 h-6 rounded-lg bg-border flex items-center justify-center text-xs font-bold text-muted-foreground hover:bg-pink-100">+</button>
+                              <button onClick={() => setCart((prev) => prev.filter((ci) => lineKey(ci) !== lineKey(c)))}
+                                aria-label={`Quitar ${item.name} del carrito`} title="Quitar del carrito"
+                                className="ml-1 w-6 h-6 rounded-lg bg-pink-50 flex items-center justify-center text-pink-500 hover:bg-pink-100"><X size={12} /></button>
                             </div>
                           </div>
                         );

@@ -48,7 +48,7 @@ exports.getOverview = async (req, res) => {
     ]);
 
     const activeSubs = bakeries.filter((b) => b.subscription?.status === 'active');
-    const paidSubs = activeSubs.filter((b) => b.subscription.plan !== 'basic');
+    const paidSubs = activeSubs.filter((b) => b.subscription.plan !== 'basic' && b.subscription.expiresAt && new Date(b.subscription.expiresAt) > now);
     const mrr = sum(paidSubs.map((b) => ({ price: b.subscription.price })), 'price');
     const monthRevenue = sum(income.filter((i) => new Date(i.date) >= thisMonth), 'amount');
     const prevMonth = months[months.length - 2];

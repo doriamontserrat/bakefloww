@@ -59,6 +59,7 @@ app.use('/api/categories', require('./routes/category.routes'));
 app.use('/api/products', require('./routes/product.routes'));
 app.use('/api/orders', require('./routes/order.routes'));
 app.use('/api/finances', require('./routes/finance.routes'));
+app.use('/api/reports', require('./routes/report.routes'));
 app.use('/api/incidents', require('./routes/incident.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/plans', require('./routes/plan.routes'));

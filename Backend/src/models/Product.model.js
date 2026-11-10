@@ -9,7 +9,7 @@ const productSchema = new mongoose.Schema({
   imageUrl: { type: String, default: '' },
   sizes: [{ type: String }], // Ej: ["Chico (10 personas)", "Mediano (20 personas)"]
   flavors: [{ type: String }], // Ej: ["Vainilla", "Chocolate", "Red Velvet"]
-  stock: { type: Number, default: 0 }, 
+  stock: { type: Number, default: 0, min: [0, 'El stock no puede ser negativo'], validate: { validator: Number.isInteger, message: 'El stock debe ser un número entero' } },
   isAvailable: { type: Boolean, default: true }
   
 }, { timestamps: true });

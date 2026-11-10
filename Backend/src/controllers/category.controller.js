@@ -44,6 +44,7 @@ exports.deleteCategory = async (req, res) => {
   try {
     const category = await Category.findByIdAndDelete(req.params.id);
     if (!category) return notFound(res, 'Categoría no encontrada');
+    await Product.updateMany({ categoryId: category._id }, { categoryId: null });
     res.json({ ok: true, message: 'Categoría eliminada' });
   } catch (error) {
     res.status(500).json({ ok: false, message: 'Error al eliminar categoría' });

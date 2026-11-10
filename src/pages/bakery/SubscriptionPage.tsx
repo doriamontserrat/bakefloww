@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Star, Crown, Flower2, Check, X, Zap } from "lucide-react";
-import { api, getStoredUser } from "../../services/api";
+import { api, getStoredUser, forceRelogin } from "../../services/api";
 
 // Presentación de cada plan (clave del backend). Nombre, precio y límites vienen del servidor.
 const STYLE: Record<string, { Icon: React.ComponentType<{ size?: number; className?: string }>; color: string; headerText: string; popular?: boolean; features: { text: string; included: boolean }[] }> = {
@@ -34,7 +34,8 @@ const STYLE: Record<string, { Icon: React.ComponentType<{ size?: number; classNa
 };
 
 interface PlanRow { key: string; name: string; price: number; maxOrdersPerMonth: number | null; }
-interface Sub { plan: string; status: string; price: number; expiresAt: string | null; }
+interface Sub { plan: string; status: string; price: number; expiresAt: string | null; cancelAtPeriodEnd?: boolean; }
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
 
 export default function SubscriptionPage() {
   const bakeryId = getStoredUser()?.bakeryId;
@@ -44,7 +45,18 @@ export default function SubscriptionPage() {
   const [maxFree, setMaxFree] = useState<number | null>(null);
   const [confirmPlan, setConfirmPlan] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [relogin, setRelogin] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(5);
+
+  // Tras cambiar de plan se cierra la sesión (a los 5 s o al pulsar el botón) para cargar los nuevos accesos
+  useEffect(() => {
+    if (!relogin) return;
+    if (secondsLeft <= 0) { forceRelogin(); return; }
+    const t = setTimeout(() => setSecondsLeft((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [relogin, secondsLeft]);
 
   useEffect(() => {
     if (!bakeryId) { setError("Tu cuenta no tiene una pastelería asociada."); return; }
@@ -70,9 +82,12 @@ export default function SubscriptionPage() {
     setBusy(true);
     setError("");
     try {
-      const { bakery } = await api<{ bakery: { subscription: Sub } }>(`/bakeries/${bakeryId}/subscription`, { method: "PUT", body });
+      const { bakery, accessUntil } = await api<{ bakery: { subscription: Sub }; accessUntil: string | null }>(`/bakeries/${bakeryId}/subscription`, { method: "PUT", body });
       setSub(bakery.subscription);
       setConfirmPlan(null);
+      // Cancelación programada: conserva el plan pagado hasta la fecha, no hay nada que recargar todavía.
+      if (accessUntil) setNotice(`Listo: conservas tus funciones de pago hasta el ${fmtDate(accessUntil)}. Después pasarás al plan gratuito.`);
+      else setRelogin(true); // el nuevo plan se carga al volver a iniciar sesión
     } catch (e) {
       setError(e instanceof Error ? e.message : "No se pudo cambiar el plan.");
     } finally {
@@ -82,6 +97,8 @@ export default function SubscriptionPage() {
 
   const CurrentIcon = (STYLE[currentKey] || STYLE.basic).Icon;
   const target = plans.find((p) => p.key === confirmPlan);
+  // Fecha en que se perdería el acceso si ya hay un periodo de pago vigente
+  const endsOn = currentKey !== "basic" && sub?.expiresAt ? sub.expiresAt : null;
   const TargetIcon = target ? (STYLE[target.key] || STYLE.basic).Icon : Star;
 
   return (
@@ -93,6 +110,8 @@ export default function SubscriptionPage() {
 
       {error && <div className="mb-5 bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{error}</div>}
 
+      {notice && <div className="mb-5 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-4 py-3 rounded-2xl">{notice}</div>}
+
       {current && (
         <div className="mb-8 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-3xl p-5 flex items-center gap-4">
           <div className="w-14 h-14 bg-gradient-to-br from-purple-400 to-pink-400 rounded-2xl flex items-center justify-center">
@@ -102,14 +121,17 @@ export default function SubscriptionPage() {
             <div className="font-bold text-foreground">Plan actual: <span className="text-purple-600">{current.name}</span>
               {sub?.status === "cancelled" && <span className="ml-2 text-xs font-bold text-rose-500">(cancelado)</span>}</div>
             <div className="text-sm text-muted-foreground mt-0.5">
-              {sub?.expiresAt && currentKey !== "basic" ? `Renovación el ${new Date(sub.expiresAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })} · ` : ""}
+              {sub?.expiresAt && currentKey !== "basic" ? `${sub.cancelAtPeriodEnd ? "Pierdes el acceso" : "Renovación"} el ${fmtDate(sub.expiresAt)} · ` : ""}
               {current.price > 0 ? `$${current.price}/mes` : "Sin costo"}
             </div>
+            {sub?.cancelAtPeriodEnd && currentKey !== "basic" && (
+              <div className="text-xs font-bold text-amber-600 mt-1">Plan cancelado: no se renovará y volverás al plan gratuito.</div>
+            )}
           </div>
           <div className="text-right">
             {daysLeft !== null && currentKey !== "basic" && <div className="font-bold text-foreground text-sm">{daysLeft} días restantes</div>}
-            {currentKey !== "basic" && (
-              <button onClick={() => changePlan({ action: "cancel" })} disabled={busy} className="text-xs text-rose-500 font-bold hover:text-rose-600">Cancelar suscripción</button>
+            {currentKey !== "basic" && !sub?.cancelAtPeriodEnd && (
+              <button onClick={() => setConfirmPlan("basic")} disabled={busy} className="text-xs text-rose-500 font-bold hover:text-rose-600">Cancelar suscripción</button>
             )}
           </div>
         </div>
@@ -176,20 +198,44 @@ export default function SubscriptionPage() {
         })}
       </div>
 
+      {relogin && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4" role="alertdialog" aria-modal="true">
+          <div className="bg-card w-full max-w-sm rounded-3xl card-shadow-lg p-6 border border-border animate-pop text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-400 rounded-3xl flex items-center justify-center mx-auto mb-4">
+              <Check size={28} className="text-white" />
+            </div>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">¡Plan actualizado!</h2>
+            <p className="text-sm text-muted-foreground font-medium mb-6">
+              Para activar las nuevas funciones debes volver a iniciar sesión. Cerraremos tu sesión en {secondsLeft} s.
+            </p>
+            <button onClick={forceRelogin}
+              className="w-full py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl shadow-md">
+              Iniciar sesión de nuevo
+            </button>
+          </div>
+        </div>
+      )}
+
       {target && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card w-full max-w-sm rounded-3xl card-shadow-lg p-6 border border-border animate-pop text-center">
             <div className={`w-16 h-16 bg-gradient-to-br ${(STYLE[target.key] || STYLE.basic).color} rounded-3xl flex items-center justify-center mx-auto mb-4`}>
               <TargetIcon size={28} className={target.key === "basic" ? "text-pink-600" : "text-white"} />
             </div>
-            <h2 className="font-display text-xl font-semibold text-foreground mb-2">Cambiar a plan {target.name}</h2>
+            <h2 className="font-display text-xl font-semibold text-foreground mb-2">
+              {target.price === 0 && endsOn ? "¿Cancelar tu plan?" : `Cambiar a plan ${target.name}`}
+            </h2>
             <p className="text-sm text-muted-foreground font-medium mb-6">
-              {target.price === 0 ? "Perderás acceso a las funciones de pago y volverás al límite de pedidos mensual." : `Se realizará un cobro de $${target.price}/mes a partir de hoy.`}
+              {target.price === 0
+                ? endsOn
+                  ? `Tu plan ${current?.name} será cancelado y no se renovará. Perderás el acceso a sus funciones el ${fmtDate(endsOn)}; hasta entonces sigues usándolas. Después volverás al plan gratuito y a su límite de pedidos mensual.`
+                  : "Volverás al plan gratuito y a su límite de pedidos mensual."
+                : `Se realizará un cobro de $${target.price}/mes a partir de hoy.`}
             </p>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmPlan(null)} className="flex-1 py-3 border-2 border-border text-foreground font-bold rounded-2xl hover:bg-muted">Cancelar</button>
+              <button onClick={() => setConfirmPlan(null)} className="flex-1 py-3 border-2 border-border text-foreground font-bold rounded-2xl hover:bg-muted">{target.price === 0 && endsOn ? "Mantener plan" : "Cancelar"}</button>
               <button onClick={() => changePlan({ plan: target.key })} disabled={busy}
-                className="disabled:opacity-60 flex-1 py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl shadow-md">{busy ? "Procesando..." : "Confirmar"}</button>
+                className="disabled:opacity-60 flex-1 py-3 bg-gradient-to-r from-pink-400 to-purple-400 text-white font-bold rounded-2xl shadow-md">{busy ? "Procesando..." : target.price === 0 && endsOn ? "Sí, cancelar" : "Confirmar"}</button>
             </div>
           </div>
         </div>

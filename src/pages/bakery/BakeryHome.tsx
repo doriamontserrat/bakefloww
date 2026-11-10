@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api } from "../../services/api";
+import { api, getPlan, hasFeature } from "../../services/api";
 import { isDeadStatus, orderCode, orderTitle, clientName } from "../../services/orders";
 import { Package, DollarSign, Clock, Users, Cake, Calendar, Sparkles, BarChart2, ArrowRight, Star, TrendingUp } from "lucide-react";
 
@@ -22,7 +22,7 @@ export default function BakeryHome({ userName, onNavigate }: Props) {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([api<{ orders: any[] }>("/orders"), api<{ records: any[] }>("/finances")])
+    Promise.all([api<{ orders: any[] }>("/orders"), (hasFeature("finance") ? api<{ records: any[] }>("/finances") : Promise.resolve({ records: [] as any[] })).catch(() => ({ records: [] as any[] }))])
       .then(([o, f]) => { setOrders(o.orders); setRecords(f.records); })
       .catch((e) => setError(e.message));
   }, []);
@@ -51,7 +51,7 @@ export default function BakeryHome({ userName, onNavigate }: Props) {
     { Icon: Cake,     label: "Gestionar menú",    page: "menu-mgmt",       desc: "Agrega o edita productos" },
     { Icon: Calendar, label: "Ver calendario",    page: "orders-cal",       desc: "Pedidos programados" },
     { Icon: Sparkles, label: "Pedidos especiales", page: "custom-requests", desc: "Solicitudes personalizadas" },
-    { Icon: BarChart2, label: "Finanzas",          page: "finances",         desc: "Ingresos y gastos" },
+    ...(hasFeature("finance") ? [{ Icon: BarChart2, label: "Finanzas", page: "finances", desc: "Ingresos y gastos" }] : []),
   ];
 
   // Próximas entregas: pedidos vivos ordenados por fecha de entrega (el backend ya los ordena)
@@ -80,7 +80,7 @@ export default function BakeryHome({ userName, onNavigate }: Props) {
           </div>
           <div className="shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white/20 border border-white/30 rounded-2xl backdrop-blur-sm">
             <Star size={14} className="text-amber-300 fill-amber-300" />
-            <span className="text-white text-sm font-bold">Plan Pro</span>
+            <span className="text-white text-sm font-bold">Plan {getPlan()?.name ?? "Gratuito"}</span>
             <button onClick={() => onNavigate("subscription")} className="text-white/70 hover:text-white text-xs underline ml-1 transition-colors">Gestionar</button>
           </div>
         </div>
