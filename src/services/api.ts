@@ -4,7 +4,9 @@ export function getToken(): string | null {
   return sessionStorage.getItem("bakeflow_token");
 }
 
-export function getStoredUser(): { id: string; name: string; email: string; role: string; bakeryId: string | null; jobTitle?: string } | null {
+export const USER_UPDATED_EVENT = "bakeflow:user-updated";
+
+export function getStoredUser(): { id: string; name: string; email: string; role: string; bakeryId: string | null; jobTitle?: string; profilePhoto?: string } | null {
   try {
     return JSON.parse(sessionStorage.getItem("bakeflow_user") || "null");
   } catch {
@@ -18,6 +20,7 @@ export const isCashier = (): boolean => getStoredUser()?.jobTitle === "Cajera";
 /** Actualiza campos del usuario guardado en la sesión (p. ej. el nombre tras editar el perfil). */
 export function updateStoredUser(patch: Record<string, unknown>) {
   sessionStorage.setItem("bakeflow_user", JSON.stringify({ ...getStoredUser(), ...patch }));
+  window.dispatchEvent(new Event(USER_UPDATED_EVENT));
 }
 
 export const UNAUTHORIZED_EVENT = "bakeflow:unauthorized";

@@ -58,6 +58,7 @@ export default function EmployeeProfile({ userName }: Props) {
       const url = await uploadImage(file);
       await api("/users/profile", { method: "PUT", body: { profilePhoto: url } });
       setPhoto(url);
+      updateStoredUser({ profilePhoto: url });
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "No se pudo subir la imagen.");
     }
@@ -67,6 +68,7 @@ export default function EmployeeProfile({ userName }: Props) {
     try {
       await api("/users/profile", { method: "PUT", body: { profilePhoto: "" } });
       setPhoto("");
+      updateStoredUser({ profilePhoto: "" });
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "No se pudo quitar la foto.");
     }

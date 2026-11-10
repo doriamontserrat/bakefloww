@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api, getToken, clearSession, saveStoredPlan, updateStoredUser, UNAUTHORIZED_EVENT, type PlanInfo } from "./services/api";
+import { api, getToken, getStoredUser, USER_UPDATED_EVENT, clearSession, saveStoredPlan, updateStoredUser, UNAUTHORIZED_EVENT, type PlanInfo } from "./services/api";
 import AuthPage from "./pages/AuthPage";
 import CustomerApp from "./pages/customer/CustomerApp";
 import BakeryApp from "./pages/bakery/BakeryApp";
@@ -28,6 +28,16 @@ export default function App() {
     const onUnauthorized = () => setSession(null);
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  // Nombre editado en el perfil: reflejarlo en toda la app (sidebar, saludos)
+  useEffect(() => {
+    const onUserUpdated = () => {
+      const name = getStoredUser()?.name;
+      if (name) setSession((s) => (s && s.name !== name ? { ...s, name } : s));
+    };
+    window.addEventListener(USER_UPDATED_EVENT, onUserUpdated);
+    return () => window.removeEventListener(USER_UPDATED_EVENT, onUserUpdated);
   }, []);
 
   function handleLogin(role: Role, name: string) { setSession({ role, name }); }

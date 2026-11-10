@@ -93,7 +93,7 @@ export default function BakeryProfile({ userName, onNavigate }: Props) {
         method: "PUT",
         body: { name: form.bakeryName.trim(), description: form.description, address: form.address, phone: form.phone, logoUrl: photo },
       });
-      updateStoredUser({ name: user.name });
+      updateStoredUser({ name: user.name, profilePhoto: photo });
       setEditing(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

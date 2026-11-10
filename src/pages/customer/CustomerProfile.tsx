@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { Phone, MapPin, Cake, User, Pencil, Check, Package, Lock, Eye, EyeOff } from "lucide-react";
-import { api, updateStoredUser } from "../../services/api";
+import { useState, useEffect, useRef } from "react";
+import { Phone, MapPin, Cake, User, Pencil, Check, Package, Lock, Eye, EyeOff, ImagePlus, X } from "lucide-react";
+import { api, updateStoredUser, uploadImage } from "../../services/api";
 import { validateName, validateTitle, validatePhone, validateAddress, validateBirthday, validatePassword, firstError, sanitizeField, maxBirthday, minBirthday } from "../../utils/validators";
 
 interface Props { userName: string; }
@@ -17,6 +17,32 @@ export default function CustomerProfile({ userName }: Props) {
   const [showNext, setShowNext] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSaved, setPwSaved] = useState(false);
+  const [photo, setPhoto] = useState("");
+  const photoRef = useRef<HTMLInputElement>(null);
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    setError("");
+    try {
+      const url = await uploadImage(file);
+      await api("/users/profile", { method: "PUT", body: { profilePhoto: url } });
+      setPhoto(url);
+      updateStoredUser({ profilePhoto: url });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo subir la imagen.");
+    }
+    e.target.value = "";
+  }
+
+  async function removePhoto() {
+    try {
+      await api("/users/profile", { method: "PUT", body: { profilePhoto: "" } });
+      setPhoto("");
+      updateStoredUser({ profilePhoto: "" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo quitar la foto.");
+    }
+  }
 
   async function changePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -41,6 +67,7 @@ export default function CustomerProfile({ userName }: Props) {
       api<{ orders: any[] }>("/orders"),
     ])
       .then(([{ user }, { orders }]) => {
+        setPhoto(user.profilePhoto || "");
         setForm({
           name: user.name, email: user.email, phone: user.phone || "",
           address: user.address || "", birthday: user.birthday ? user.birthday.slice(0, 10) : "",
@@ -118,8 +145,29 @@ export default function CustomerProfile({ userName }: Props) {
 
       <div className="bg-card rounded-3xl card-shadow border border-border p-6 mb-5">
         <div className="flex items-center gap-5">
-          <div className="w-20 h-20 bg-gradient-to-br from-pink-400 to-purple-400 rounded-3xl flex items-center justify-center text-3xl text-white font-bold shadow-md">
-            {form.name.charAt(0).toUpperCase()}
+          <div className="relative shrink-0">
+            {photo ? (
+              <div className="relative">
+                <img src={photo} alt="Perfil" className="w-20 h-20 rounded-3xl object-cover border-2 border-pink-200 shadow-md" />
+                {editing && (
+                  <button onClick={removePhoto}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-400 text-white rounded-full flex items-center justify-center">
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="w-20 h-20 bg-gradient-to-br from-pink-400 to-purple-400 rounded-3xl flex items-center justify-center text-3xl text-white font-bold shadow-md">
+                {form.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            {editing && (
+              <button onClick={() => photoRef.current?.click()}
+                className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-pink-500 text-white rounded-xl flex items-center justify-center shadow-md hover:bg-pink-600 transition-colors">
+                <ImagePlus size={12} />
+              </button>
+            )}
+            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
           </div>
           <div>
             <div className="font-display text-xl font-semibold text-foreground">{form.name}</div>

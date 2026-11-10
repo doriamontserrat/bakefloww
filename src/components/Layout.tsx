@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Home, Cake, Sparkles, Package, User, Calendar, Users,
   DollarSign, Star, BarChart2, AlertTriangle, CreditCard,
   Tag, LogOut, ChevronLeft, ChevronRight, Store, Menu, X, ShoppingBag,
 } from "lucide-react";
 import Logo from "./Logo";
-import { hasFeature, isCashier } from "../services/api";
+import { api, hasFeature, isCashier, getStoredUser, updateStoredUser, USER_UPDATED_EVENT } from "../services/api";
 
 type Role = "customer" | "bakery" | "employee" | "admin";
 
@@ -80,6 +80,25 @@ const MOBILE_TABS: Record<Role, string[]> = {
 export default function Layout({ role, userName, activePage, onNavigate, onLogout, children, notifications = 0 }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [photo, setPhoto] = useState(() => getStoredUser()?.profilePhoto || "");
+
+  // Foto del sidebar: la del usuario (o el logo, si es pastelería). Se carga al entrar y se refresca al editar el perfil.
+  useEffect(() => {
+    const sync = () => setPhoto(getStoredUser()?.profilePhoto || "");
+    window.addEventListener(USER_UPDATED_EVENT, sync);
+    (async () => {
+      try {
+        const { user } = await api<{ user: any }>("/auth/me");
+        let img: string = user.profilePhoto || "";
+        if (role === "bakery" && user.bakeryId) {
+          const { bakery } = await api<{ bakery: any }>(`/bakeries/${user.bakeryId}`);
+          img = bakery.logoUrl || "";
+        }
+        updateStoredUser({ profilePhoto: img });
+      } catch { /* sin foto: se muestra la inicial */ }
+    })();
+    return () => window.removeEventListener(USER_UPDATED_EVENT, sync);
+  }, [role]);
   // Las secciones que el plan no incluye se ocultan del menú
   const navItems = NAV_ITEMS[role]
     .filter((n) => !n.feature || role !== "bakery" || hasFeature(n.feature))
@@ -110,7 +129,7 @@ export default function Layout({ role, userName, activePage, onNavigate, onLogou
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
           <aside className="relative w-72 bg-card flex flex-col shadow-2xl animate-slide-in">
             <SidebarContent
-              role={role} meta={meta} userName={userName}
+              role={role} meta={meta} userName={userName} photo={photo}
               navItems={navItems} activePage={activePage}
               notifications={notifications} collapsed={false}
               onNavigate={navigate} onLogout={onLogout}
@@ -132,7 +151,7 @@ export default function Layout({ role, userName, activePage, onNavigate, onLogou
         style={{ boxShadow: "2px 0 24px -4px rgba(236,72,153,0.1)" }}
       >
         <SidebarContent
-          role={role} meta={meta} userName={userName}
+          role={role} meta={meta} userName={userName} photo={photo}
           navItems={navItems} activePage={activePage}
           notifications={notifications} collapsed={collapsed}
           onNavigate={navigate} onLogout={onLogout}
@@ -171,6 +190,7 @@ interface SidebarContentProps {
   role: Role;
   meta: typeof ROLE_META[Role];
   userName: string;
+  photo: string;
   navItems: NavItem[];
   activePage: string;
   notifications: number;
@@ -182,7 +202,7 @@ interface SidebarContentProps {
   headerRight?: React.ReactNode;
 }
 
-function SidebarContent({ role, meta, userName, navItems, activePage, notifications, collapsed, onNavigate, onLogout, onToggleCollapse, showCollapseBtn, headerRight }: SidebarContentProps) {
+function SidebarContent({ role, meta, userName, photo, navItems, activePage, notifications, collapsed, onNavigate, onLogout, onToggleCollapse, showCollapseBtn, headerRight }: SidebarContentProps) {
   return (
     <>
       {/* Header */}
@@ -231,9 +251,13 @@ function SidebarContent({ role, meta, userName, navItems, activePage, notificati
         {!collapsed && (
           <button onClick={() => onNavigate("profile")}
             className="w-full flex items-center gap-2.5 px-3 py-2.5 mb-1 bg-muted rounded-2xl hover:bg-pink-50 transition-colors text-left">
-            <div className={`w-8 h-8 bg-gradient-to-br ${meta.gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}>
-              {userName.charAt(0).toUpperCase()}
-            </div>
+            {photo ? (
+              <img src={photo} alt="" className="w-8 h-8 rounded-xl object-cover shrink-0 shadow-sm" />
+            ) : (
+              <div className={`w-8 h-8 bg-gradient-to-br ${meta.gradient} rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-sm`}>
+                {userName.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="text-xs font-bold text-foreground truncate">{userName}</div>
               <div className="text-[11px] text-muted-foreground truncate">{meta.label}</div>
