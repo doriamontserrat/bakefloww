@@ -32,7 +32,7 @@ export default function EmployeeHome({ userName, onNavigate }: Props) {
   }));
   const statValues = {
     active: live.filter((o) => o.status === "in_preparation").length,
-    doneToday: orders.filter((o) => (o.status === "ready" || o.status === "delivered") && sameDay(o.updatedAt)).length,
+    doneToday: orders.filter((o) => (o.status === "prepared" || o.status === "ready" || o.status === "delivered") && sameDay(o.updatedAt)).length,
     week: orders.filter((o) => { const d = new Date(o.deliveryDate); return d >= startOfWeek && d < endOfWeek; }).length,
     upcoming: live.filter((o) => o.status === "pending" || o.status === "pending_quote").length,
   };

@@ -8,7 +8,7 @@ const User = require('../models/User.model');
 const Bakery = require('../models/Bakery.model');
 
 // Pedidos que aún están en curso (no terminados ni cancelados)
-const ACTIVE_STATUSES = ['pending_quote', 'awaiting_client', 'pending', 'in_preparation', 'ready'];
+const ACTIVE_STATUSES = ['pending_quote', 'awaiting_client', 'pending', 'in_preparation', 'prepared', 'ready'];
 
 // Limpia lo que cuelga de unos pedidos. Las finanzas se conservan (contabilidad) sin el vínculo.
 async function removeOrderRefs(orderIds) {

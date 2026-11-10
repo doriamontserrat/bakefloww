@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { Clock, ChefHat, CheckCircle2, PartyPopper, XCircle, Cake, Phone, User, CreditCard, Lock, ChevronLeft, X, UserCheck, CheckCheck } from "lucide-react";
+import { Clock, ChefHat, CheckCircle2, PartyPopper, XCircle, Cake, Phone, User, CreditCard, Lock, ChevronLeft, X, UserCheck, CheckCheck, Eye } from "lucide-react";
 import { api } from "../../services/api";
 import { DATE_FILTERS, matchesDate, keyOf, compareByDate, type DateFilter } from "../../utils/dateFilter";
 
 
-type OrderStatus = "pending" | "accepted" | "progress" | "ready" | "delivered" | "cancelled";
+type OrderStatus = "pending" | "accepted" | "progress" | "prepared" | "ready" | "delivered" | "cancelled";
 
 interface OrderRow {
   id: string; dbId: string; client: string; cake: string; date: string; status: OrderStatus;
@@ -12,12 +12,12 @@ interface OrderRow {
 }
 
 const UI_TO_DB: Record<OrderStatus, string> = {
-  pending: "pending", accepted: "in_preparation", progress: "in_preparation",
+  pending: "pending", accepted: "in_preparation", progress: "in_preparation", prepared: "prepared",
   ready: "ready", delivered: "delivered", cancelled: "cancelled",
 };
 const DB_TO_UI: Record<string, OrderStatus> = {
   pending_quote: "pending", awaiting_client: "pending", pending: "pending", in_preparation: "progress",
-  ready: "ready", delivered: "delivered", cancelled: "cancelled", rejected: "cancelled", declined: "cancelled",
+  prepared: "prepared", ready: "ready", delivered: "delivered", cancelled: "cancelled", rejected: "cancelled", declined: "cancelled",
 };
 
 function toRow(o: any): OrderRow {
@@ -41,12 +41,13 @@ const STATUS_MAP: Record<OrderStatus, { label: string; class: string; Icon: Reac
   pending:   { label: "Pendiente",  class: "badge-pending",   Icon: Clock },
   accepted:  { label: "Aceptado",   class: "badge-progress",  Icon: CheckCheck },
   progress:  { label: "En proceso", class: "badge-progress",  Icon: ChefHat },
+  prepared:  { label: "Por revisar", class: "badge-pending",  Icon: Eye },
   ready:     { label: "Listo",      class: "badge-ready",     Icon: CheckCircle2 },
   delivered: { label: "Entregado",  class: "badge-delivered", Icon: PartyPopper },
   cancelled: { label: "Cancelado",  class: "badge-cancelled", Icon: XCircle },
 };
 
-const WORK_STATUSES: OrderStatus[] = ["accepted", "progress", "ready", "delivered"];
+const WORK_STATUSES: OrderStatus[] = ["accepted", "progress", "prepared", "ready", "delivered"];
 
 function formatCard(v: string) { return v.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim(); }
 function formatExpiry(v: string) { const d = v.replace(/\D/g, "").slice(0, 4); return d.length >= 3 ? d.slice(0, 2) + "/" + d.slice(2) : d; }
@@ -82,7 +83,7 @@ export default function OrdersManagement() {
   const [cardForm, setCardForm] = useState({ number: "", name: "", expiry: "", cvv: "" });
 
   // "Aceptado" y "En proceso" comparten estado en la base de datos, así que el filtro los agrupa en "En proceso"
-  const FILTERS: ("all" | OrderStatus)[] = ["all", "pending", "progress", "ready", "delivered", "cancelled"];
+  const FILTERS: ("all" | OrderStatus)[] = ["all", "pending", "progress", "prepared", "ready", "delivered", "cancelled"];
   const byDate = orders.filter(o => matchesDate(o.dateKey, dateFilter, customDay));
   const countOf = (f: "all" | OrderStatus) =>
     byDate.filter(o => f === "all" || o.status === f || (f === "progress" && o.status === "accepted")).length;
@@ -269,7 +270,27 @@ export default function OrdersManagement() {
               )}
 
               {/* In-progress or beyond — status selector */}
-              {(selectedOrder.status === "progress" || selectedOrder.status === "ready") && (
+              {/* Prepared — the bakery reviews the finish before releasing it */}
+              {selectedOrder.status === "prepared" && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                  <div className="text-sm font-bold text-amber-700 mb-2 flex items-center gap-2">
+                    <Eye size={14} /> {selectedOrder.employee} lo marcó como preparado
+                  </div>
+                  <p className="text-xs text-amber-700 font-medium mb-3">Revisa el diseño, el mensaje y el acabado antes de aprobarlo. Si algo está mal, devuélvelo al empleado.</p>
+                  <div className="flex gap-2.5">
+                    <button onClick={() => changeStatus(selectedOrder.id, "ready")}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-pink-500 hover:bg-pink-600 text-white font-bold rounded-2xl text-sm transition-all active:scale-95">
+                      <CheckCircle2 size={15} /> Aprobar: listo
+                    </button>
+                    <button onClick={() => changeStatus(selectedOrder.id, "progress")}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border-2 border-pink-400 text-pink-500 font-bold rounded-2xl text-sm hover:bg-pink-50 transition-all active:scale-95">
+                      <ChefHat size={15} /> Devolver a proceso
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {(selectedOrder.status === "progress" || selectedOrder.status === "prepared" || selectedOrder.status === "ready") && (
                 <>
                   <div>
                     <label className="text-xs font-bold text-muted-foreground block mb-2">Estado del pedido</label>

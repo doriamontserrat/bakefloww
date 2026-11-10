@@ -35,7 +35,7 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending_quote', 'awaiting_client', 'rejected', 'declined', 'pending', 'in_preparation', 'ready', 'delivered', 'cancelled'],
+    enum: ['pending_quote', 'awaiting_client', 'rejected', 'declined', 'pending', 'in_preparation', 'prepared', 'ready', 'delivered', 'cancelled'],
     default: 'pending'
   },
   deliveryDate: { type: Date, required: [true, 'La fecha de entrega es obligatoria'] },

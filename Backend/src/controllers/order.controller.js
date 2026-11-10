@@ -293,6 +293,14 @@ exports.updateOrder = async (req, res) => {
       return res.status(400).json({ ok: false, message: 'Los estados de cotización solo se cambian con las acciones de cotizar, aceptar o rechazar.' });
     }
 
+    // El empleado solo marca el pedido como "preparado"; la pastelería lo valida y lo libera como "listo"
+    if (req.user.role === 'employee' && status !== undefined && status !== previousStatus && ['ready', 'delivered'].includes(status)) {
+      return forbidden(res, 'Solo la pastelería puede validar un pedido como listo o entregado.');
+    }
+    if (req.user.role === 'employee' && previousStatus === 'ready' && status !== undefined && status !== previousStatus) {
+      return forbidden(res, 'Este pedido ya fue validado por la pastelería.');
+    }
+
     if (status !== undefined) {
       if (!STATUSES.includes(status)) return res.status(400).json({ ok: false, message: 'Estado de pedido inválido.' });
       order.status = status;
@@ -349,7 +357,19 @@ exports.updateOrder = async (req, res) => {
         delivered: 'Entregado',
         cancelled: 'Cancelado'
       };
-      if (order.customerId) {
+      // "prepared" es un paso interno: avisa a la pastelería para revisar, no al cliente
+      if (status === 'prepared') {
+        const bakery = await Bakery.findById(order.bakeryId).select('ownerId');
+        if (bakery?.ownerId) {
+          await Notification.create({
+            userId: bakery.ownerId,
+            orderId: order._id,
+            type: 'order',
+            title: 'Pedido por revisar',
+            message: `El pedido #${order._id.toString().slice(-6).toUpperCase()} fue marcado como preparado y espera tu validación.`
+          });
+        }
+      } else if (order.customerId) {
         await Notification.create({
           userId: order.customerId,
           orderId: order._id,
@@ -362,8 +382,8 @@ exports.updateOrder = async (req, res) => {
       // Si el pedido se cierra sin venderse, su ingreso (si ya se había registrado) se retira de las finanzas
       if (RELEASE_STATUSES.includes(status)) await Finance.deleteMany({ orderId: order._id, type: 'income' });
 
-      // Al quedar listo (o entregarse) cuenta como ganancia: se registra una sola vez por pedido
-      if (['ready', 'delivered'].includes(status) && order.totalPrice > 0 && !(await Finance.exists({ orderId: order._id, type: 'income' }))) {
+      // Solo al entregarse (cobrarse) cuenta como ganancia: se registra una sola vez por pedido
+      if (status === 'delivered' && order.totalPrice > 0 && !(await Finance.exists({ orderId: order._id, type: 'income' }))) {
         await Finance.create({
           bakeryId: order.bakeryId,
           orderId: order._id,

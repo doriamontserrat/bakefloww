@@ -22,10 +22,10 @@ function toTask(o: any): Task {
 const STATUS_OPTIONS = [
   { val: "pending",  label: "Pendiente",  Icon: Clock,        active: "bg-amber-50 text-amber-600 border-amber-200" },
   { val: "progress", label: "En proceso", Icon: ChefHat,      active: "bg-blue-50 text-blue-600 border-blue-200" },
-  { val: "ready",    label: "Listo",      Icon: CheckCircle2, active: "bg-green-50 text-green-600 border-green-200" },
+  { val: "prepared", label: "Preparado",  Icon: CheckCircle2, active: "bg-green-50 text-green-600 border-green-200" },
 ];
 
-const STATUS_LABEL: Record<string, string> = { pending: "Pendiente", progress: "En proceso", ready: "Listo" };
+const STATUS_LABEL: Record<string, string> = { pending: "Pendiente", progress: "En proceso", prepared: "Preparado", ready: "Listo" };
 
 export default function EmployeeTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -54,9 +54,21 @@ export default function EmployeeTasks() {
   const currentStatus = sel?.status;
 
   function handleStatusClick(val: string) {
-    if (!sel || val === currentStatus) return;
+    if (!sel || val === currentStatus || currentStatus === "ready") return;
+    // Marcar como preparado es el aviso del empleado a la pastelería: no necesita contraseña
+    if (val === "prepared") { markPrepared(sel); return; }
     setAuthModal({ taskId: sel.id, targetStatus: val });
     setAuthUser(""); setAuthPass(""); setAuthError("");
+  }
+
+  async function markPrepared(task: Task) {
+    setError("");
+    try {
+      await api("/orders/" + task.dbId, { method: "PUT", body: { status: UI_TO_DB.prepared } });
+      setTasks((prev) => prev.map((t) => t.id === task.id ? { ...t, status: "prepared" } : t));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo marcar el pedido como preparado.");
+    }
   }
 
   // 1) el supervisor (dueño de la pastelería) se valida en el backend, 2) se actualiza el pedido
@@ -85,6 +97,7 @@ export default function EmployeeTasks() {
   }
   function getStatusBadge(s: string) {
     if (s === "progress") return <span className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full badge-progress"><ChefHat size={10} /> En proceso</span>;
+    if (s === "prepared") return <span className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full badge-ready"><CheckCircle2 size={10} /> Por revisar</span>;
     if (s === "ready")    return <span className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full badge-ready"><CheckCircle2 size={10} /> Listo</span>;
     return <span className="flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full badge-pending"><Clock size={10} /> Pendiente</span>;
   }
@@ -192,15 +205,26 @@ export default function EmployeeTasks() {
           </div>
 
           <div>
+            {error && <div className="mb-3 bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">{error}</div>}
+            {currentStatus === "prepared" && (
+              <div className="mb-3 bg-green-50 border border-green-200 text-green-700 text-xs font-semibold px-4 py-3 rounded-2xl">
+                Enviado a la pastelería para revisión. Cuando lo valide, quedará listo para entregar.
+              </div>
+            )}
+            {currentStatus === "ready" && (
+              <div className="mb-3 bg-pink-50 border border-pink-200 text-pink-600 text-xs font-semibold px-4 py-3 rounded-2xl">
+                La pastelería ya validó este pedido: está listo para entregar.
+              </div>
+            )}
             <div className="text-xs font-bold text-muted-foreground mb-2 flex items-center gap-1.5">
-              <Lock size={10} /> Actualizar estado (requiere usuario de pastelería)
+              <Lock size={10} /> Actualizar estado (preparado se envía a revisión; otros cambios requieren usuario de pastelería)
             </div>
             <div className="flex gap-2 flex-wrap">
               {STATUS_OPTIONS.map((s) => (
                 <button key={s.val} onClick={() => handleStatusClick(s.val)}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-bold border-2 transition-all ${currentStatus === s.val ? s.active + " scale-105" : "border-border text-muted-foreground hover:border-indigo-200"}`}>
                   <s.Icon size={12} /> {s.label}
-                  {currentStatus !== s.val && <Lock size={9} className="ml-0.5 opacity-50" />}
+                  {currentStatus !== s.val && s.val !== "prepared" && <Lock size={9} className="ml-0.5 opacity-50" />}
                 </button>
               ))}
             </div>

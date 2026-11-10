@@ -7,8 +7,8 @@ interface Step { label: string; done: boolean; time: string; }
 interface OrderView { id: string; dbId: string; rawStatus: string; name: string; status: string; date: string; delivery: string; dateKey: string; total: string; steps: Step[]; }
 
 const FLOW = [
-  { label: "Pedido recibido", statuses: ["pending_quote", "pending", "in_preparation", "ready", "delivered"] },
-  { label: "En preparación", statuses: ["in_preparation", "ready", "delivered"] },
+  { label: "Pedido recibido", statuses: ["pending_quote", "pending", "in_preparation", "prepared", "ready", "delivered"] },
+  { label: "En preparación", statuses: ["in_preparation", "prepared", "ready", "delivered"] },
   { label: "Listo para recoger", statuses: ["ready", "delivered"] },
   { label: "Entregado", statuses: ["delivered"] },
 ];
@@ -16,7 +16,7 @@ const FLOW = [
 const fmtDate = (d: string) => new Date(d).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric" });
 
 function toView(o: any): OrderView {
-  const status = o.status === "in_preparation" ? "progress"
+  const status = ["in_preparation", "prepared"].includes(o.status) ? "progress"
     : ["pending_quote", "awaiting_client"].includes(o.status) ? "pending"
     : ["rejected", "declined"].includes(o.status) ? "cancelled" : o.status;
   const name = o.orderType === "custom"

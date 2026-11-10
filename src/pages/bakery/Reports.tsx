@@ -19,7 +19,7 @@ interface Advanced {
 const money = (n: number) => `$${n.toLocaleString("es-MX")}`;
 const STATUS_LABEL: Record<string, string> = {
   pending_quote: "Cotización pendiente", awaiting_client: "Esperando cliente", pending: "Pendiente", in_preparation: "En proceso",
-  ready: "Listo", delivered: "Entregado", cancelled: "Cancelado", rejected: "Rechazado", declined: "Declinado",
+  prepared: "Por revisar", ready: "Listo", delivered: "Entregado", cancelled: "Cancelado", rejected: "Rechazado", declined: "Declinado",
 };
 const PAY_LABEL: Record<string, string> = { cash: "Efectivo", card: "Tarjeta", transfer: "Transferencia", pending: "Por cobrar" };
 const monthLabel = (key: string) => new Date(`${key}-01T12:00:00`).toLocaleDateString("es-MX", { month: "short" });

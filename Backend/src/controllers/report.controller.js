@@ -2,7 +2,7 @@ const Order = require('../models/Order.model');
 const Finance = require('../models/Finance.model');
 
 const DEAD = ['cancelled', 'rejected', 'declined'];
-const SOLD = ['ready', 'delivered']; // cuentan como ganancia
+const SOLD = ['delivered']; // solo lo entregado (cobrado) cuenta como ganancia
 const monthKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const round = (n) => Math.round(n * 100) / 100;
 

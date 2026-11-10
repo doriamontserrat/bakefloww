@@ -13,17 +13,19 @@ interface CalOrder { id: string; client: string; cake: string; status: string; }
 const STATUS_BADGE: Record<string, string> = {
   pending: "badge-pending",
   progress: "badge-progress",
+  prepared: "badge-pending",
   ready: "badge-ready",
   delivered: "badge-delivered",
 };
 const STATUS_DOT: Record<string, string> = {
   pending: "bg-amber-400",
   progress: "bg-blue-400",
+  prepared: "bg-amber-500",
   ready: "bg-green-400",
   delivered: "bg-gray-400",
 };
 const STATUS_LABEL: Record<string, string> = {
-  pending: "Pendiente", progress: "En proceso", ready: "Listo", delivered: "Entregado",
+  pending: "Pendiente", progress: "En proceso", prepared: "Por revisar", ready: "Listo", delivered: "Entregado",
 };
 
 function dateKey(year: number, month: number, day: number) {

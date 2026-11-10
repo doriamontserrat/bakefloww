@@ -22,7 +22,7 @@ const inRange = (date, m) => new Date(date) >= m.start && new Date(date) < m.end
 
 // Ingresos de la plataforma = comisiones cobradas (Finance) + suscripciones cobradas (Payment)
 async function platformIncome() {
-  const [commissions, payments] = await Promise.all([
+  const [commissions, payments] = await Promise.all([ //mayor q 0
     Finance.find({ type: 'income', commissionAmount: { $gt: 0 } }).select('commissionAmount date'),
     Payment.find().select('amount createdAt')
   ]);

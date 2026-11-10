@@ -69,7 +69,7 @@ export default function EmployeeCalendar({ onNavigate }: Props = {}) {
   // Próximo pedido: la fecha más cercana desde hoy (en cualquier mes) con algún pedido sin terminar
   const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
   const upcomingKey = Object.keys(ordersData)
-    .filter((k) => k >= todayKey && ordersData[k].some((o) => o.status !== "ready" && o.status !== "delivered"))
+    .filter((k) => k >= todayKey && ordersData[k].some((o) => o.status !== "prepared" && o.status !== "ready" && o.status !== "delivered"))
     .sort()[0];
   const upcomingLabel = upcomingKey
     ? (() => { const [, m, d] = upcomingKey.split("-").map(Number); return upcomingKey === todayKey ? "hoy" : `el ${d} de ${MONTH_NAMES[m - 1]}`; })()
@@ -169,8 +169,8 @@ export default function EmployeeCalendar({ onNavigate }: Props = {}) {
                   <div key={o.id} className="p-3 bg-muted rounded-2xl">
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="font-bold text-sm text-indigo-500">{o.id}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${o.status === "progress" ? "badge-progress" : o.status === "ready" ? "badge-ready" : o.status === "delivered" ? "badge-delivered" : "badge-pending"}`}>
-                        {o.status === "progress" ? "En proceso" : o.status === "ready" ? "Listo" : o.status === "delivered" ? "Entregado" : "Pendiente"}
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${o.status === "progress" ? "badge-progress" : o.status === "ready" || o.status === "prepared" ? "badge-ready" : o.status === "delivered" ? "badge-delivered" : "badge-pending"}`}>
+                        {o.status === "progress" ? "En proceso" : o.status === "prepared" ? "Por revisar" : o.status === "ready" ? "Listo" : o.status === "delivered" ? "Entregado" : "Pendiente"}
                       </span>
                     </div>
                     <div className="text-sm font-semibold text-foreground">{o.cake}</div>

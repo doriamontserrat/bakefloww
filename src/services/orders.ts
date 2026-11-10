@@ -1,20 +1,20 @@
 // Utilidades compartidas para mostrar pedidos del backend en las pantallas.
 
 /** Estados que manejan las pantallas de pedidos (calendarios, tareas, inicio). */
-export type UiStatus = "pending" | "progress" | "ready" | "delivered" | "cancelled";
+export type UiStatus = "pending" | "progress" | "prepared" | "ready" | "delivered" | "cancelled";
 
 export const DB_TO_UI: Record<string, UiStatus> = {
   pending_quote: "pending", awaiting_client: "pending", pending: "pending", in_preparation: "progress",
-  ready: "ready", delivered: "delivered", cancelled: "cancelled", rejected: "cancelled", declined: "cancelled",
+  prepared: "prepared", ready: "ready", delivered: "delivered", cancelled: "cancelled", rejected: "cancelled", declined: "cancelled",
 };
 
 /** Estados en los que el pedido ya no se trabaja (cancelado o solicitud rechazada). */
 export const isDeadStatus = (s: string): boolean => s === "cancelled" || s === "rejected" || s === "declined";
 export const UI_TO_DB: Record<UiStatus, string> = {
-  pending: "pending", progress: "in_preparation", ready: "ready", delivered: "delivered", cancelled: "cancelled",
+  pending: "pending", progress: "in_preparation", prepared: "prepared", ready: "ready", delivered: "delivered", cancelled: "cancelled",
 };
 export const UI_LABEL: Record<UiStatus, string> = {
-  pending: "Pendiente", progress: "En proceso", ready: "Listo", delivered: "Entregado", cancelled: "Cancelado",
+  pending: "Pendiente", progress: "En proceso", prepared: "Preparado (por revisar)", ready: "Listo", delivered: "Entregado", cancelled: "Cancelado",
 };
 
 export const orderCode = (o: any): string => "#" + String(o._id).slice(-6).toUpperCase();
