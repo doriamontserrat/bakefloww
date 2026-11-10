@@ -65,8 +65,8 @@ app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/plans', require('./routes/plan.routes'));
 app.use('/api/settings', require('./routes/setting.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
-const { router: uploadRouter, UPLOAD_DIR } = require('./routes/upload.routes');
+const { router: uploadRouter, publicRouter: uploadsPublicRouter } = require('./routes/upload.routes');
 app.use('/api/uploads', uploadRouter);
-app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d' }));
+app.use('/uploads', uploadsPublicRouter);
 
 module.exports = app;
